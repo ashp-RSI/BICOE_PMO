@@ -1,0 +1,11 @@
+Flask==3.1.1
+office365-rest-python-client==2.6.2
+msal==1.35.1
+pandas==2.2.3
+openpyxl==3.1.5
+python-dotenv==1.2.1
+requests==2.32.3
+Flask-Caching==2.3.1
+APScheduler==3.10.4
+rapidfuzz==3.10.1
+gunicorn==23.0.0

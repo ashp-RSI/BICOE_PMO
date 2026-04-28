@@ -1,0 +1,955 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Head Count Report Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/toastr@2.1.4/build/toastr.min.css" rel="stylesheet">
+    <link href="{{ url_for('static', filename='css/styles.css') }}?v={{ cache_bust }}" rel="stylesheet">
+</head>
+<body>
+    <!-- Navbar -->
+    <nav class="navbar navbar-dark bg-primary-gradient py-1">
+        <div class="container-fluid px-3">
+            <a class="navbar-brand fw-bold small" href="/">
+                <i class="bi bi-people-fill me-1"></i>Head Count Report
+            </a>
+            <div class="d-flex align-items-center gap-2">
+                <button class="btn btn-outline-light btn-sm py-0 px-2 btn-demand-req" data-bs-toggle="offcanvas"
+                        data-bs-target="#demandRequisitionPanel" style="font-size:.75rem"
+                        title="Open Demand Requisition form">
+                    <i class="bi bi-file-earmark-plus me-1"></i>Demand Requisition
+                </button>
+                <button class="btn btn-outline-light btn-sm py-0 px-2" id="btnRefresh" title="Refresh from SharePoint" style="font-size:.75rem">
+                    <i class="bi bi-arrow-clockwise me-1"></i>Refresh
+                </button>
+                <button class="btn btn-outline-light btn-sm py-0 px-2" id="btnExport" title="Export filtered data" style="font-size:.75rem">
+                    <i class="bi bi-download me-1"></i>Export CSV
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container-fluid px-3 py-2">
+        <!-- Row 1: Head Count KPIs -->
+        <div class="row g-2 mb-2">
+            <div class="col-12">
+                <div class="section-label mb-1"><i class="bi bi-people-fill me-1"></i>Head Count Report — Sub Practice</div>
+                <div class="row g-2">
+                    <div class="col">
+                        <div class="card stat-card stat-card-clickable border-0 shadow-sm active" data-kpi="all">
+                            <div class="card-body py-2 px-3">
+                                <div class="d-flex align-items-center">
+                                    <div class="stat-icon bg-primary-subtle text-primary"><i class="bi bi-people-fill"></i></div>
+                                    <div class="ms-2">
+                                        <div class="text-muted stat-label">Total</div>
+                                        <div class="fw-bold stat-value" id="totalCount">--</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col">
+                        <div class="card stat-card stat-card-clickable border-0 shadow-sm" data-kpi="sp-DE">
+                            <div class="card-body py-2 px-3">
+                                <div class="d-flex align-items-center">
+                                    <div class="stat-icon bg-data-subtle text-data"><i class="bi bi-database-fill"></i></div>
+                                    <div class="ms-2">
+                                        <div class="text-muted stat-label">DE</div>
+                                        <div class="fw-bold stat-value" id="dataCount">--</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col">
+                        <div class="card stat-card stat-card-clickable border-0 shadow-sm" data-kpi="sp-AI">
+                            <div class="card-body py-2 px-3">
+                                <div class="d-flex align-items-center">
+                                    <div class="stat-icon bg-ai-subtle text-ai"><i class="bi bi-robot"></i></div>
+                                    <div class="ms-2">
+                                        <div class="text-muted stat-label">AI</div>
+                                        <div class="fw-bold stat-value" id="aiCount">--</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col">
+                        <div class="card stat-card stat-card-clickable border-0 shadow-sm" data-kpi="sp-BI">
+                            <div class="card-body py-2 px-3">
+                                <div class="d-flex align-items-center">
+                                    <div class="stat-icon bg-bi-subtle text-bi"><i class="bi bi-bar-chart-line-fill"></i></div>
+                                    <div class="ms-2">
+                                        <div class="text-muted stat-label">BI</div>
+                                        <div class="fw-bold stat-value" id="biCount">--</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col">
+                        <div class="card stat-card stat-card-clickable border-0 shadow-sm" data-kpi="sp-Core">
+                            <div class="card-body py-2 px-3">
+                                <div class="d-flex align-items-center">
+                                    <div class="stat-icon bg-secondary-subtle text-secondary"><i class="bi bi-cpu-fill"></i></div>
+                                    <div class="ms-2">
+                                        <div class="text-muted stat-label">Core</div>
+                                        <div class="fw-bold stat-value" id="coreCount">--</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col">
+                        <div class="card stat-card stat-card-clickable border-0 shadow-sm" data-kpi="sp-Not Confirmed">
+                            <div class="card-body py-2 px-3">
+                                <div class="d-flex align-items-center">
+                                    <div class="stat-icon bg-nc-subtle text-nc"><i class="bi bi-question-circle-fill"></i></div>
+                                    <div class="ms-2">
+                                        <div class="text-muted stat-label">Not Confirmed</div>
+                                        <div class="fw-bold stat-value" id="notConfirmedCount">--</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="section-label mb-1 mt-2"><i class="bi bi-cash-coin me-1"></i>Billable / Non Billable</div>
+                <div class="row g-2">
+                    <div class="col">
+                        <div class="card stat-card stat-card-clickable border-0 shadow-sm" data-kpi="all">
+                            <div class="card-body py-2 px-3">
+                                <div class="d-flex align-items-center">
+                                    <div class="stat-icon bg-primary-subtle text-primary"><i class="bi bi-people-fill"></i></div>
+                                    <div class="ms-2">
+                                        <div class="text-muted stat-label">Total</div>
+                                        <div class="fw-bold stat-value" id="blTotalCount">--</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col">
+                        <div class="card stat-card stat-card-clickable border-0 shadow-sm" data-kpi="Billable">
+                            <div class="card-body py-2 px-3">
+                                <div class="d-flex align-items-center">
+                                    <div class="stat-icon bg-success-subtle text-success"><i class="bi bi-cash-stack"></i></div>
+                                    <div class="ms-2">
+                                        <div class="text-muted stat-label">Billable</div>
+                                        <div class="fw-bold stat-value" id="billableCount">--</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col">
+                        <div class="card stat-card stat-card-clickable border-0 shadow-sm" data-kpi="Non-Billable">
+                            <div class="card-body py-2 px-3">
+                                <div class="d-flex align-items-center">
+                                    <div class="stat-icon bg-warning-subtle text-warning"><i class="bi bi-clock-history"></i></div>
+                                    <div class="ms-2">
+                                        <div class="text-muted stat-label">Non-Billable</div>
+                                        <div class="fw-bold stat-value" id="nonBillableCount">--</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col">
+                        <div class="card stat-card stat-card-clickable border-0 shadow-sm" data-kpi="Blocked">
+                            <div class="card-body py-2 px-3">
+                                <div class="d-flex align-items-center">
+                                    <div class="stat-icon bg-blocked-subtle text-blocked"><i class="bi bi-slash-circle-fill"></i></div>
+                                    <div class="ms-2">
+                                        <div class="text-muted stat-label">Blocked</div>
+                                        <div class="fw-bold stat-value" id="blockedCount">--</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col">
+                        <div class="card stat-card stat-card-clickable border-0 shadow-sm" data-kpi="Proposed">
+                            <div class="card-body py-2 px-3">
+                                <div class="d-flex align-items-center">
+                                    <div class="stat-icon bg-proposed-subtle text-proposed"><i class="bi bi-send-check-fill"></i></div>
+                                    <div class="ms-2">
+                                        <div class="text-muted stat-label">Proposed</div>
+                                        <div class="fw-bold stat-value" id="proposedCount">--</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col">
+                        <div class="card stat-card stat-card-clickable border-0 shadow-sm" data-kpi="Internal project">
+                            <div class="card-body py-2 px-3">
+                                <div class="d-flex align-items-center">
+                                    <div class="stat-icon bg-ip-subtle text-ip"><i class="bi bi-kanban-fill"></i></div>
+                                    <div class="ms-2">
+                                        <div class="text-muted stat-label">Internal Project</div>
+                                        <div class="fw-bold stat-value" id="internalProjectCount">--</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col">
+                        <div class="card stat-card stat-card-clickable border-0 shadow-sm" data-kpi="Solution Offerings">
+                            <div class="card-body py-2 px-3">
+                                <div class="d-flex align-items-center">
+                                    <div class="stat-icon bg-so-subtle text-so"><i class="bi bi-box-seam-fill"></i></div>
+                                    <div class="ms-2">
+                                        <div class="text-muted stat-label">Solution Offering</div>
+                                        <div class="fw-bold stat-value" id="solutionOfferingCount">--</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col">
+                        <div class="card stat-card stat-card-clickable border-0 shadow-sm" data-kpi="other">
+                            <div class="card-body py-2 px-3">
+                                <div class="d-flex align-items-center">
+                                    <div class="stat-icon bg-secondary-subtle text-secondary"><i class="bi bi-diagram-3-fill"></i></div>
+                                    <div class="ms-2">
+                                        <div class="text-muted stat-label">Other</div>
+                                        <div class="fw-bold stat-value" id="otherCount">--</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!-- Row 2: Demand Fulfillment KPIs -->
+        <div class="row g-2 mb-2">
+            <div class="col-12">
+                <div class="section-label mb-1"><i class="bi bi-bullseye me-1"></i>Demand Fulfillment</div>
+                <div class="row g-2">
+                    <div class="col">
+                        <div class="card stat-card border-0 shadow-sm df-card df-card-clickable active" data-df-kpi="all" role="button">
+                            <div class="card-body py-2 px-3">
+                                <div class="d-flex align-items-center">
+                                    <div class="stat-icon bg-df-total"><i class="bi bi-clipboard2-data-fill text-white"></i></div>
+                                    <div class="ms-2">
+                                        <div class="text-muted stat-label">Total Demands</div>
+                                        <div class="fw-bold stat-value" id="dfTotalDemands">--</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col">
+                        <div class="card stat-card border-0 shadow-sm df-card df-card-clickable" data-df-kpi="open" role="button">
+                            <div class="card-body py-2 px-3">
+                                <div class="d-flex align-items-center">
+                                    <div class="stat-icon bg-df-open"><i class="bi bi-hourglass-split text-white"></i></div>
+                                    <div class="ms-2">
+                                        <div class="text-muted stat-label">Open Demands</div>
+                                        <div class="fw-bold stat-value" id="dfOpenDemands">--</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col">
+                        <div class="card stat-card border-0 shadow-sm df-card df-card-clickable" data-df-kpi="internally_fulfilled" role="button">
+                            <div class="card-body py-2 px-3">
+                                <div class="d-flex align-items-center">
+                                    <div class="stat-icon bg-df-internal"><i class="bi bi-person-check-fill text-white"></i></div>
+                                    <div class="ms-2">
+                                        <div class="text-muted stat-label">Internally Fulfilled</div>
+                                        <div class="fw-bold stat-value" id="dfInternallyFulfilled">--</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col">
+                        <div class="card stat-card border-0 shadow-sm df-card df-card-clickable" data-df-kpi="externally_fulfilled" role="button">
+                            <div class="card-body py-2 px-3">
+                                <div class="d-flex align-items-center">
+                                    <div class="stat-icon bg-success"><i class="bi bi-check2-circle text-white"></i></div>
+                                    <div class="ms-2">
+                                        <div class="text-muted stat-label">Externally Fulfilled</div>
+                                        <div class="fw-bold stat-value" id="dfExternallyFulfilled">--</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col">
+                        <div class="card stat-card border-0 shadow-sm df-card df-card-clickable" data-df-kpi="external_raised" role="button">
+                            <div class="card-body py-2 px-3">
+                                <div class="d-flex align-items-center">
+                                    <div class="stat-icon bg-df-external"><i class="bi bi-box-arrow-up-right text-white"></i></div>
+                                    <div class="ms-2">
+                                        <div class="text-muted stat-label">External Raised</div>
+                                        <div class="fw-bold stat-value" id="dfExternalRaised">--</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab Navigation -->
+        <ul class="nav nav-tabs nav-tabs-custom mb-2" id="mainTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="tab-headcount" data-bs-toggle="tab"
+                        data-bs-target="#pane-headcount" type="button" role="tab">
+                    <i class="bi bi-people-fill me-1"></i>Head Count Report
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="tab-demand" data-bs-toggle="tab"
+                        data-bs-target="#pane-demand" type="button" role="tab">
+                    <i class="bi bi-bullseye me-1"></i>Demand Fulfillment
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="tab-notifications" data-bs-toggle="tab"
+                        data-bs-target="#pane-notifications" type="button" role="tab">
+                    <i class="bi bi-envelope-paper me-1"></i>Notifications
+                    <span class="badge bg-warning text-dark ms-1 d-none" id="notifAwaitingBadge"></span>
+                </button>
+            </li>
+        </ul>
+
+        <div class="tab-content">
+            <!-- Head Count Report Tab -->
+            <div class="tab-pane fade show active" id="pane-headcount" role="tabpanel">
+                <!-- Filters -->
+                <div class="card border-0 shadow-sm mb-2">
+                    <div class="card-body py-2 px-3">
+                        <div class="row g-2 align-items-end">
+                            <div class="col-xl-2 col-md-3 col-sm-6">
+                                <label class="form-label mb-0 filter-label">Sub Practice</label>
+                                <select class="form-select form-select-sm" id="filterSubPractice">
+                                    <option value="All">All Sub Practices</option>
+                                </select>
+                            </div>
+                            <div class="col-xl-2 col-md-3 col-sm-6">
+                                <label class="form-label mb-0 filter-label">Billable / Non Billable</label>
+                                <select class="form-select form-select-sm" id="filterBillable">
+                                    <option value="All">All Status</option>
+                                </select>
+                            </div>
+                            <div class="col-xl-2 col-md-3 col-sm-6">
+                                <label class="form-label mb-0 filter-label">Projects</label>
+                                <select class="form-select form-select-sm" id="filterProject">
+                                    <option value="All">All Projects</option>
+                                </select>
+                            </div>
+                            <div class="col-xl-4 col-md-3">
+                                <label class="form-label mb-0 filter-label">Search</label>
+                                <div class="input-group input-group-sm">
+                                    <span class="input-group-text bg-white"><i class="bi bi-search"></i></span>
+                                    <input type="text" class="form-control" id="searchInput" placeholder="Search by name, skill, email...">
+                                </div>
+                            </div>
+                            <div class="col-xl-2 col-md-3 d-flex gap-1">
+                                <button class="btn btn-primary btn-sm flex-fill" id="btnApply"><i class="bi bi-funnel me-1"></i>Apply</button>
+                                <button class="btn btn-outline-secondary btn-sm flex-fill" id="btnReset"><i class="bi bi-x-lg me-1"></i>Reset</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <!-- Data Table -->
+                <div class="card border-0 shadow-sm">
+                    <div class="card-header bg-white border-0 d-flex justify-content-between align-items-center py-2">
+                        <span class="fw-semibold" style="font-size:.85rem">
+                            Employee Data
+                            <span class="badge bg-primary ms-1" id="filteredCount" style="font-size:.7rem"></span>
+                        </span>
+                        <div class="d-flex align-items-center gap-2">
+                            <button class="btn btn-success btn-sm py-0 px-2" id="btnOpenAddEmployees"
+                                    data-bs-toggle="modal" data-bs-target="#addEmployeesModal"
+                                    style="font-size:.75rem" title="Add one or more new employees">
+                                <i class="bi bi-person-plus-fill me-1"></i>Add Employees
+                            </button>
+                            <div class="dropdown">
+                                <button class="btn btn-outline-secondary btn-sm py-0 px-2" id="btnColumnChooser"
+                                        data-bs-toggle="dropdown" data-bs-auto-close="outside"
+                                        style="font-size:.75rem" title="Choose visible columns">
+                                    <i class="bi bi-layout-three-columns me-1"></i>Columns
+                                </button>
+                                <div class="dropdown-menu dropdown-menu-end p-0 shadow" id="columnChooserMenu"
+                                     style="width:280px;max-height:400px;overflow-y:auto">
+                                    <div class="px-3 py-2 border-bottom bg-light d-flex justify-content-between align-items-center">
+                                        <span class="fw-semibold" style="font-size:.78rem">Toggle Columns</span>
+                                        <button class="btn btn-link btn-sm p-0 text-primary" id="btnResetColumns" style="font-size:.72rem">Reset</button>
+                                    </div>
+                                    <div id="columnChooserList" class="px-2 py-1"></div>
+                                </div>
+                            </div>
+                            <label class="text-muted me-1" style="font-size:.75rem">Per page:</label>
+                            <select class="form-select form-select-sm py-0" id="perPageSelect" style="width:auto;font-size:.75rem">
+                                <option value="10">10</option>
+                                <option value="25" selected>25</option>
+                                <option value="50">50</option>
+                                <option value="100">100</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="table-responsive">
+                            <table class="table table-hover table-striped mb-0" id="headcountTable">
+                                <thead class="table-light sticky-top"><tr id="tableHeader"></tr></thead>
+                                <tbody id="tableBody">
+                                    <tr><td colspan="20" class="text-center py-3">
+                                        <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
+                                        <span class="ms-2 text-muted small">Loading data from SharePoint...</span>
+                                    </td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <div class="card-footer bg-white border-0 d-flex justify-content-between align-items-center py-2">
+                        <span class="text-muted" style="font-size:.75rem" id="paginationInfo">Showing 0 of 0</span>
+                        <nav><ul class="pagination pagination-sm mb-0" id="paginationControls"></ul></nav>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Notifications Tab -->
+            <div class="tab-pane fade" id="pane-notifications" role="tabpanel">
+                <div class="card border-0 shadow-sm mb-2">
+                    <div class="card-body py-2 px-3">
+                        <div class="d-flex align-items-center gap-2 flex-wrap">
+                            <label class="form-label mb-0 filter-label me-1">Status</label>
+                            <select class="form-select form-select-sm" id="notifFilterStatus" style="width:auto">
+                                <option value="">All</option>
+                                <option value="awaiting_reply">Awaiting Reply</option>
+                                <option value="approved">Approved</option>
+                                <option value="rejected">Rejected</option>
+                                <option value="no_response">No Response</option>
+                                <option value="cancelled">Cancelled</option>
+                            </select>
+                            <button class="btn btn-outline-secondary btn-sm" id="btnNotifRefresh">
+                                <i class="bi bi-arrow-clockwise me-1"></i>Refresh
+                            </button>
+                            <span class="text-muted small ms-auto" id="notifTotalLabel"></span>
+                        </div>
+                    </div>
+                </div>
+                <div class="card border-0 shadow-sm">
+                    <div class="card-body p-0">
+                        <div class="table-responsive">
+                            <table class="table table-hover mb-0" id="notifTable">
+                                <thead class="table-light sticky-top">
+                                    <tr>
+                                        <th style="width:42px">#</th>
+                                        <th>Employee</th>
+                                        <th>Demand</th>
+                                        <th>Customer</th>
+                                        <th>Manager</th>
+                                        <th>Sent</th>
+                                        <th>Reminders</th>
+                                        <th>Status</th>
+                                        <th class="text-center" style="min-width:240px">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="notifTableBody">
+                                    <tr><td colspan="9" class="text-center py-3 text-muted small">No notifications yet</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Demand Fulfillment Tab -->
+            <div class="tab-pane fade" id="pane-demand" role="tabpanel">
+                <!-- Demand Filters -->
+                <div class="card border-0 shadow-sm mb-2">
+                    <div class="card-body py-2 px-3">
+                        <div class="row g-2 align-items-end">
+                            <div class="col-md-3 col-sm-6">
+                                <label class="form-label mb-0 filter-label">Demand Status</label>
+                                <select class="form-select form-select-sm" id="filterDemandStatus">
+                                    <option value="All">All Status</option>
+                                    <option value="Open">Open</option>
+                                    <option value="In Progress">In Progress</option>
+                                    <option value="Fulfilled">Fulfilled</option>
+                                    <option value="On Hold">On Hold</option>
+                                    <option value="Closed">Closed</option>
+                                </select>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label mb-0 filter-label">Search</label>
+                                <div class="input-group input-group-sm">
+                                    <span class="input-group-text bg-white"><i class="bi bi-search"></i></span>
+                                    <input type="text" class="form-control" id="demandSearchInput" placeholder="Search by skill, requisition ID, customer...">
+                                </div>
+                            </div>
+                            <div class="col-md-2 d-flex gap-1">
+                                <button class="btn btn-primary btn-sm flex-fill" id="btnDemandApply"><i class="bi bi-funnel me-1"></i>Apply</button>
+                                <button class="btn btn-outline-secondary btn-sm flex-fill" id="btnDemandReset"><i class="bi bi-x-lg me-1"></i>Reset</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <!-- Demand Table -->
+                <div class="card border-0 shadow-sm">
+                    <div class="card-header bg-white border-0 d-flex justify-content-between align-items-center py-2">
+                        <span class="fw-semibold" style="font-size:.85rem">
+                            Demand Requisitions
+                            <span class="badge bg-primary ms-1" id="demandFilteredCount" style="font-size:.7rem"></span>
+                        </span>
+                        <div class="d-flex align-items-center gap-2">
+                            <label class="text-muted me-1" style="font-size:.75rem">Per page:</label>
+                            <select class="form-select form-select-sm py-0" id="demandPerPageSelect" style="width:auto;font-size:.75rem">
+                                <option value="10">10</option>
+                                <option value="25" selected>25</option>
+                                <option value="50">50</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="table-responsive">
+                            <table class="table table-hover table-striped mb-0" id="demandTable">
+                                <thead class="table-light sticky-top"><tr id="demandTableHeader"></tr></thead>
+                                <tbody id="demandTableBody">
+                                    <tr><td colspan="12" class="text-center py-3">
+                                        <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
+                                        <span class="ms-2 text-muted small">Loading demand data...</span>
+                                    </td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <div class="card-footer bg-white border-0 d-flex justify-content-between align-items-center py-2">
+                        <span class="text-muted" style="font-size:.75rem" id="demandPaginationInfo">Showing 0 of 0</span>
+                        <nav><ul class="pagination pagination-sm mb-0" id="demandPaginationControls"></ul></nav>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Suggestions Modal -->
+    <div class="modal fade" id="suggestionsModal" tabindex="-1">
+        <div class="modal-dialog modal-xl modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header bg-df-total text-white">
+                    <h6 class="modal-title"><i class="bi bi-search me-2"></i>Suggested Employees for <span id="suggestReqId"></span></h6>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body p-0">
+                    <div class="p-3 bg-light border-bottom">
+                        <div class="row">
+                            <div class="col-md-4"><strong class="small">Skillset:</strong> <span class="small" id="suggestSkillset"></span></div>
+                            <div class="col-md-3"><strong class="small">Experience:</strong> <span class="small" id="suggestExp"></span></div>
+                            <div class="col-md-3"><strong class="small">Customer:</strong> <span class="small" id="suggestCustomer"></span></div>
+                            <div class="col-md-2"><span class="badge bg-secondary" id="suggestMatchCount"></span></div>
+                        </div>
+                    </div>
+                    <div class="table-responsive" style="max-height:55vh">
+                        <table class="table table-hover table-sm mb-0" id="suggestionsTable">
+                            <thead class="table-light sticky-top">
+                                <tr>
+                                    <th style="font-size:.72rem">Emp Code</th>
+                                    <th style="font-size:.72rem">Emp Name</th>
+                                    <th style="font-size:.72rem">Skills</th>
+                                    <th style="font-size:.72rem">Experience</th>
+                                    <th style="font-size:.72rem">Sub Practice</th>
+                                    <th style="font-size:.72rem">Current Status</th>
+                                    <th style="font-size:.72rem">Skill Match</th>
+                                    <th style="font-size:.72rem;text-align:center">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="suggestionsBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Modal -->
+    <div class="modal fade" id="editModal" tabindex="-1">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title">
+                        <i class="bi bi-pencil-square me-2"></i>Edit Employee
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body" id="editModalBody"></div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="btnSaveEdit">
+                        <i class="bi bi-cloud-upload me-1"></i>Save to SharePoint
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add External Employee Modal -->
+    <div class="modal fade" id="externalEmpModal" tabindex="-1">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header bg-warning text-dark">
+                    <h6 class="modal-title">
+                        <i class="bi bi-person-plus-fill me-2"></i>Add External Employee
+                        <span class="small fw-normal ms-2" id="extEmpReqId"></span>
+                    </h6>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-info py-2 small mb-3">
+                        <i class="bi bi-info-circle me-1"></i>
+                        Fill in the external hire's details. This will add them to the Head Count Report
+                        as <strong>Billable</strong> and mark the demand as <strong>Fulfilled</strong>.
+                    </div>
+                    <form id="externalEmpForm" novalidate>
+                        <input type="hidden" id="extDemandRowIndex">
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold" style="font-size:.82rem">
+                                    Emp Code <span class="text-danger">*</span>
+                                </label>
+                                <input type="text" class="form-control form-control-sm" id="extEmpCode"
+                                       placeholder="e.g. 20001" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold" style="font-size:.82rem">
+                                    Emp Name <span class="text-danger">*</span>
+                                </label>
+                                <input type="text" class="form-control form-control-sm" id="extEmpName"
+                                       placeholder="Full name" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold" style="font-size:.82rem">
+                                    Skills <span class="text-danger">*</span>
+                                </label>
+                                <input type="text" class="form-control form-control-sm" id="extSkills"
+                                       placeholder="e.g. Python, Azure ML">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold" style="font-size:.82rem">
+                                    Sub Practice <span class="text-danger">*</span>
+                                </label>
+                                <select class="form-select form-select-sm" id="extSubPractice" required>
+                                    <option value="">-- Select --</option>
+                                    <option value="AI">AI</option>
+                                    <option value="BI">BI</option>
+                                    <option value="DE">DE</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold" style="font-size:.82rem">Experience</label>
+                                <input type="text" class="form-control form-control-sm" id="extExperience"
+                                       placeholder="e.g. 5:3:0 (Y:M:D)">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold" style="font-size:.82rem">Designation</label>
+                                <input type="text" class="form-control form-control-sm" id="extDesignation"
+                                       placeholder="e.g. Senior Consultant">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold" style="font-size:.82rem">Customer Name</label>
+                                <input type="text" class="form-control form-control-sm" id="extCustomerName" readonly>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold" style="font-size:.82rem">Projects</label>
+                                <input type="text" class="form-control form-control-sm" id="extProjects"
+                                       placeholder="Project name">
+                            </div>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-warning btn-sm fw-semibold" id="btnSaveExternalEmp">
+                        <i class="bi bi-person-plus me-1"></i>Add Employee & Fulfill Demand
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Employees (Bulk) Modal -->
+    <div class="modal fade" id="addEmployeesModal" tabindex="-1">
+        <div class="modal-dialog modal-xl modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header bg-success text-white">
+                    <h6 class="modal-title">
+                        <i class="bi bi-person-plus-fill me-2"></i>Add New Employees to Head Count Report
+                    </h6>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-info py-2 small mb-3 d-flex align-items-center justify-content-between">
+                        <div>
+                            <i class="bi bi-info-circle me-1"></i>
+                            Add one or many employees below. Required fields:
+                            <strong>Emp Code</strong>, <strong>Emp Name</strong>, <strong>Sub Practice</strong>.
+                            All rows are saved together in a single SharePoint sync.
+                        </div>
+                        <div class="d-flex gap-2 ms-2 flex-shrink-0">
+                            <button type="button" class="btn btn-outline-primary btn-sm" id="btnBulkPasteToggle"
+                                    title="Paste rows copied from Excel (TSV)">
+                                <i class="bi bi-clipboard-plus me-1"></i>Paste from Excel
+                            </button>
+                            <button type="button" class="btn btn-success btn-sm" id="btnAddEmpRow">
+                                <i class="bi bi-plus-lg me-1"></i>Add Row
+                            </button>
+                        </div>
+                    </div>
+
+                    <div id="bulkPasteWrap" class="mb-3 d-none">
+                        <label class="form-label fw-semibold small mb-1">
+                            Paste rows here (one employee per line, tab-separated)
+                        </label>
+                        <div class="small text-muted mb-1">
+                            Column order (same as SharePoint sheet, tab-separated — skip <strong>S.No</strong>):
+                            <code>Division &nbsp;Emp Code &nbsp;Emp Name &nbsp;Status &nbsp;LWD &nbsp;Skills &nbsp;Fresher/Lateral &nbsp;Offshore/Onsite &nbsp;Experience &nbsp;Designation &nbsp;Grade &nbsp;DOJ &nbsp;Gender &nbsp;First Line Manager &nbsp;Skip Level Manager &nbsp;Company Email &nbsp;Sub Practice &nbsp;Remarks &nbsp;Empower SL &nbsp;Billable/Non Billable &nbsp;Billable Till Date &nbsp;Projects &nbsp;Remarks2 &nbsp;Customer Name &nbsp;Customer interview happened(Yes/No) &nbsp;Customer Selected(Yes/No) &nbsp;Comments</code>
+                        </div>
+                        <textarea class="form-control form-control-sm" id="bulkPasteArea" rows="4"
+                                  placeholder="Paste rows copied directly from the SharePoint Excel sheet (omit the S.No column)"></textarea>
+                        <div class="d-flex justify-content-end gap-2 mt-2">
+                            <button type="button" class="btn btn-outline-secondary btn-sm" id="btnBulkPasteCancel">Cancel</button>
+                            <button type="button" class="btn btn-primary btn-sm" id="btnBulkPasteApply">
+                                <i class="bi bi-check2 me-1"></i>Add Rows
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="table-responsive">
+                        <table class="table table-sm table-bordered align-middle mb-0 add-emp-table" id="newEmpTable">
+                            <thead class="table-light">
+                                <tr>
+                                    <th style="width:34px"></th>
+                                    <th style="min-width:120px">Division</th>
+                                    <th style="min-width:110px">Emp Code <span class="text-danger">*</span></th>
+                                    <th style="min-width:160px">Emp Name <span class="text-danger">*</span></th>
+                                    <th style="min-width:110px">Status</th>
+                                    <th style="min-width:120px">LWD</th>
+                                    <th style="min-width:180px">Skills</th>
+                                    <th style="min-width:110px">Fresher/Lateral</th>
+                                    <th style="min-width:120px">Offshore/Onsite</th>
+                                    <th style="min-width:110px">Experience</th>
+                                    <th style="min-width:150px">Designation</th>
+                                    <th style="min-width:90px">Grade</th>
+                                    <th style="min-width:120px">DOJ</th>
+                                    <th style="min-width:100px">Gender</th>
+                                    <th style="min-width:160px">First Line Manager</th>
+                                    <th style="min-width:160px">Skip Level Manager</th>
+                                    <th style="min-width:180px">Company Email</th>
+                                    <th style="min-width:120px">Sub Practice <span class="text-danger">*</span></th>
+                                    <th style="min-width:160px">Remarks</th>
+                                    <th style="min-width:120px">Empower SL</th>
+                                    <th style="min-width:150px">Billable/Non Billable</th>
+                                    <th style="min-width:140px">Billable Till Date</th>
+                                    <th style="min-width:160px">Projects</th>
+                                    <th style="min-width:160px">Remarks2</th>
+                                    <th style="min-width:160px">Customer Name</th>
+                                    <th style="min-width:200px">Customer interview happened(Yes/No)</th>
+                                    <th style="min-width:180px">Customer Selected(Yes/No)</th>
+                                    <th style="min-width:180px">Comments</th>
+                                </tr>
+                            </thead>
+                            <tbody id="newEmpTableBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="modal-footer justify-content-between">
+                    <span class="small text-muted">
+                        <span id="newEmpRowCount">0</span> row(s) ready
+                    </span>
+                    <div class="d-flex gap-2">
+                        <button type="button" class="btn btn-outline-secondary btn-sm" id="btnClearNewEmp">
+                            <i class="bi bi-trash me-1"></i>Clear All
+                        </button>
+                        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+                        <button type="button" class="btn btn-success btn-sm fw-semibold" id="btnSaveNewEmployees">
+                            <i class="bi bi-cloud-upload me-1"></i>Save All to SharePoint
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Notify Manager Modal -->
+    <div class="modal fade" id="notifyManagerModal" tabindex="-1">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header bg-primary-gradient text-white">
+                    <h6 class="modal-title">
+                        <i class="bi bi-envelope-paper-fill me-2"></i>Notify Manager —
+                        <span id="notifyEmpLabel"></span>
+                    </h6>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="notifyDemandLinkAlert" class="alert alert-info py-2 small mb-2 d-none"></div>
+                    <div id="notifyResolutionAlert" class="alert py-2 small mb-3 d-none"></div>
+
+                    <input type="hidden" id="notifyEmpRowIndex">
+                    <input type="hidden" id="notifyResolutionMethod">
+                    <input type="hidden" id="notifyManagerName">
+
+                    <div class="row g-2 mb-2">
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold mb-1">Manager (To)</label>
+                            <input type="email" class="form-control form-control-sm" id="notifyTo">
+                            <div class="small text-muted mt-1" id="notifyManagerNameLabel"></div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold mb-1">CC (comma-separated)</label>
+                            <input type="text" class="form-control form-control-sm" id="notifyCc">
+                        </div>
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label small fw-semibold mb-1">Subject</label>
+                        <input type="text" class="form-control form-control-sm" id="notifySubject">
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label small fw-semibold mb-1">
+                            Body
+                            <span class="text-muted fw-normal">(HTML supported — preview before sending)</span>
+                        </label>
+                        <textarea class="form-control form-control-sm font-monospace" id="notifyBody" rows="10"></textarea>
+                    </div>
+                    <div class="bg-light border rounded p-2 mb-2" style="max-height:240px;overflow:auto">
+                        <div class="small text-muted mb-1"><i class="bi bi-eye"></i> Preview</div>
+                        <div id="notifyPreview" class="small"></div>
+                    </div>
+                    <div class="form-check small">
+                        <input class="form-check-input" type="checkbox" id="notifyEnableReminders" checked>
+                        <label class="form-check-label" for="notifyEnableReminders">
+                            Enable auto-reminders if no reply within
+                            <span class="fw-semibold" id="notifyReminderDays"></span>
+                            days (max <span id="notifyMaxReminders"></span> reminders)
+                        </label>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary btn-sm" id="btnNotifyPreview">
+                        <i class="bi bi-arrow-clockwise me-1"></i>Refresh Preview
+                    </button>
+                    <button type="button" class="btn btn-success btn-sm fw-semibold" id="btnNotifySend">
+                        <i class="bi bi-send-fill me-1"></i>Send Email
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Loading Overlay -->
+    <div id="loadingOverlay" class="d-none">
+        <div class="spinner-border text-light" role="status" style="width: 3rem; height: 3rem;"></div>
+        <p class="text-light mt-3 fw-semibold">Syncing with SharePoint...</p>
+    </div>
+
+    <!-- Demand Requisition Offcanvas -->
+    <div class="offcanvas offcanvas-end" tabindex="-1" id="demandRequisitionPanel">
+        <div class="offcanvas-header bg-primary-gradient text-white">
+            <div class="d-flex align-items-center">
+                <div class="dr-header-icon me-2">
+                    <i class="bi bi-file-earmark-plus"></i>
+                </div>
+                <div>
+                    <h6 class="offcanvas-title mb-0 fw-bold" style="font-size:.9rem">Demand Requisition</h6>
+                    <small class="d-block" style="font-size:.68rem;opacity:.8">Submit new resource demand</small>
+                </div>
+            </div>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="offcanvas"></button>
+        </div>
+        <div class="offcanvas-body dr-body">
+            <form id="demandRequisitionForm" novalidate>
+                <div class="card border-0 shadow-sm dr-form-card">
+                    <div class="card-body p-3">
+                        <div class="mb-3">
+                            <label for="drRequisitionId" class="form-label dr-label">
+                                <i class="bi bi-hash me-1 text-primary"></i>Requisition ID
+                                <span class="text-danger">*</span>
+                            </label>
+                            <input type="text" class="form-control form-control-sm" id="drRequisitionId"
+                                   placeholder="e.g. REQ-2026-001" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label dr-label">
+                                <i class="bi bi-briefcase me-1 text-primary"></i>Years of Experience
+                            </label>
+                            <div class="d-flex gap-2 align-items-center">
+                                <input type="number" class="form-control form-control-sm" id="drMinExp"
+                                       placeholder="Min" min="0" max="50" style="width:45%">
+                                <span class="text-muted small">to</span>
+                                <input type="number" class="form-control form-control-sm" id="drMaxExp"
+                                       placeholder="Max" min="0" max="50" style="width:45%">
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="drSkillset" class="form-label dr-label">
+                                <i class="bi bi-tools me-1 text-primary"></i>Skillset
+                                <span class="text-danger">*</span>
+                            </label>
+                            <input type="text" class="form-control form-control-sm" id="drSkillset"
+                                   placeholder="e.g. Python, Azure ML, Power BI">
+                        </div>
+                        <div class="mb-3">
+                            <label for="drCustomerName" class="form-label dr-label">
+                                <i class="bi bi-building me-1 text-primary"></i>Customer Name
+                                <span class="text-danger">*</span>
+                            </label>
+                            <input type="text" class="form-control form-control-sm" id="drCustomerName"
+                                   placeholder="e.g. Acme Corp" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="drDemandStatus" class="form-label dr-label">
+                                <i class="bi bi-flag me-1 text-primary"></i>Demand Status
+                                <span class="text-danger">*</span>
+                            </label>
+                            <select class="form-select form-select-sm" id="drDemandStatus" required>
+                                <option value="">-- Select Status --</option>
+                                <option value="Open">Open</option>
+                                <option value="In Progress">In Progress</option>
+                                <option value="Fulfilled">Fulfilled</option>
+                                <option value="On Hold">On Hold</option>
+                                <option value="Closed">Closed</option>
+                            </select>
+                        </div>
+                        <div class="mb-0">
+                            <label for="drNotes" class="form-label dr-label">
+                                <i class="bi bi-chat-left-text me-1 text-primary"></i>Notes
+                            </label>
+                            <textarea class="form-control form-control-sm" id="drNotes" rows="3"
+                                      placeholder="Any additional details..."></textarea>
+                        </div>
+                    </div>
+                </div>
+                <div class="d-grid gap-2 mt-3">
+                    <button type="submit" class="btn btn-save-sp" id="btnSaveDemand">
+                        <i class="bi bi-cloud-upload me-1"></i>Save to SharePoint
+                    </button>
+                    <button type="reset" class="btn btn-outline-secondary btn-sm">
+                        <i class="bi bi-x-lg me-1"></i>Clear Form
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jquery@3.7.1/dist/jquery.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/toastr@2.1.4/build/toastr.min.js"></script>
+    <script src="{{ url_for('static', filename='js/app.js') }}?v={{ cache_bust }}"></script>
+</body>
+</html>

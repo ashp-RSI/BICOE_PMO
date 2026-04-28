@@ -1,0 +1,14 @@
+venv/
+.env
+.env.local
+*.pyc
+__pycache__/
+.pytest_cache/
+.token_cache.bin
+notifications.db
+*.db-journal
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.log

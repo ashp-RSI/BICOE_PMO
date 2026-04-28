@@ -1,0 +1,720 @@
+:root {
+    --primary-gradient: linear-gradient(135deg, #1a73e8 0%, #0d47a1 100%);
+}
+
+body {
+    background-color: #f0f2f5;
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    overflow-x: hidden;
+}
+
+.bg-primary-gradient {
+    background: var(--primary-gradient);
+}
+
+.navbar {
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+    min-height: auto;
+}
+
+/* ── Stat Cards ──────────────────────────────── */
+.stat-card {
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    border-radius: 8px;
+}
+
+.stat-card-clickable {
+    cursor: pointer;
+    border: 2px solid transparent !important;
+}
+
+.stat-card-clickable:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.12) !important;
+    border-color: #1a73e8 !important;
+}
+
+.stat-card-clickable.active {
+    border-color: #1a73e8 !important;
+    box-shadow: 0 0 0 1px #1a73e8, 0 3px 10px rgba(26, 115, 232, 0.15) !important;
+}
+
+.stat-card:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.1) !important;
+}
+
+.stat-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1rem;
+    flex-shrink: 0;
+}
+
+.stat-label {
+    font-size: 0.68rem;
+    line-height: 1.2;
+}
+
+.stat-value {
+    font-size: 1.25rem;
+    line-height: 1.2;
+}
+
+/* ── Section Labels ─────────────────────────── */
+.section-label {
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: #495057;
+}
+
+.stat-icon-sm {
+    width: 28px;
+    height: 28px;
+    font-size: 0.8rem;
+}
+
+.stat-value-sm {
+    font-size: 1rem;
+    line-height: 1.2;
+}
+
+/* ── Sub Practice KPI Colors ─────────────────── */
+.bg-data-subtle {
+    background-color: #e0f2f1;
+}
+
+.text-data {
+    color: #00796b;
+}
+
+.bg-ai-subtle {
+    background-color: #ede7f6;
+}
+
+.text-ai {
+    color: #5e35b1;
+}
+
+.bg-bi-subtle {
+    background-color: #fff3e0;
+}
+
+.text-bi {
+    color: #e65100;
+}
+
+/* ── Not Confirmed KPI Colors ──────────────── */
+.bg-nc-subtle {
+    background-color: #fff3e0;
+}
+
+.text-nc {
+    color: #e65100;
+}
+
+/* ── Internal Project / POC / Solution KPI Colors */
+.bg-ip-subtle {
+    background-color: #e3f2fd;
+}
+
+.text-ip {
+    color: #1565c0;
+}
+
+.bg-poc-subtle {
+    background-color: #fff8e1;
+}
+
+.text-poc {
+    color: #f57f17;
+}
+
+.bg-so-subtle {
+    background-color: #fce4ec;
+}
+
+.text-so {
+    color: #c62828;
+}
+
+/* ── Blocked / Proposed KPI Colors ──────────── */
+.bg-blocked-subtle {
+    background-color: #fde8e8;
+}
+
+.text-blocked {
+    color: #b71c1c;
+}
+
+.bg-proposed-subtle {
+    background-color: #e8eaf6;
+}
+
+.text-proposed {
+    color: #283593;
+}
+
+/* ── Demand Fulfillment KPI Colors ───────────── */
+.bg-df-total {
+    background: linear-gradient(135deg, #5e35b1, #7c4dff);
+}
+
+.bg-df-open {
+    background: linear-gradient(135deg, #e65100, #ff9100);
+}
+
+.bg-df-internal {
+    background: linear-gradient(135deg, #1b8a2d, #4caf50);
+}
+
+.bg-df-external {
+    background: linear-gradient(135deg, #c62828, #ef5350);
+}
+
+.df-card {
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.df-card-clickable {
+    cursor: pointer;
+    border: 2px solid transparent !important;
+}
+
+.df-card-clickable:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.12) !important;
+    border-color: #6f42c1 !important;
+}
+
+.df-card-clickable.active {
+    border-color: #6f42c1 !important;
+    box-shadow: 0 0 0 1px #6f42c1, 0 3px 10px rgba(111, 66, 193, 0.15) !important;
+}
+
+/* ── Tabs ────────────────────────────────────── */
+.nav-tabs-custom {
+    border-bottom: 2px solid #dee2e6;
+}
+
+.nav-tabs-custom .nav-link {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #6c757d;
+    border: none;
+    border-bottom: 2px solid transparent;
+    padding: 0.4rem 1rem;
+    margin-bottom: -2px;
+    transition: all 0.2s ease;
+}
+
+.nav-tabs-custom .nav-link:hover {
+    color: #1a73e8;
+    border-bottom-color: #1a73e8;
+}
+
+.nav-tabs-custom .nav-link.active {
+    color: #1a73e8;
+    border-bottom-color: #1a73e8;
+    background: transparent;
+}
+
+/* ── Demand Table ────────────────────────────── */
+#demandTable {
+    font-size: 0.78rem;
+}
+
+#demandTable thead th {
+    font-weight: 600;
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    color: #495057;
+    white-space: nowrap;
+    border-bottom: 2px solid #dee2e6;
+    position: sticky;
+    top: 0;
+    background: #f8f9fa;
+    z-index: 1;
+    padding: 0.35rem 0.5rem;
+}
+
+#demandTable tbody td {
+    vertical-align: middle;
+    white-space: nowrap;
+    max-width: 180px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    padding: 0.3rem 0.5rem;
+}
+
+#demandTable tbody tr:hover {
+    background-color: #f3e5f5 !important;
+}
+
+/* ── Suggestions Modal ───────────────────────── */
+#suggestionsTable {
+    font-size: 0.78rem;
+}
+
+#suggestionsTable thead th {
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    color: #495057;
+    background: #f8f9fa;
+    position: sticky;
+    top: 0;
+    z-index: 1;
+}
+
+#suggestionsTable tbody tr:hover {
+    background-color: #e8f5e9 !important;
+}
+
+/* ── Column Chooser ─────────────────────────── */
+.col-chooser-item {
+    cursor: pointer;
+    transition: background-color 0.15s ease;
+    font-size: 0.78rem;
+}
+
+.col-chooser-item:hover {
+    background-color: #e8f0fe;
+}
+
+.col-chooser-item .form-check-input {
+    width: 14px;
+    height: 14px;
+    cursor: pointer;
+}
+
+.col-chooser-item .form-check-input:checked {
+    background-color: #1a73e8;
+    border-color: #1a73e8;
+}
+
+.col-chooser-label {
+    font-size: 0.76rem;
+    user-select: none;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+#columnChooserMenu {
+    font-size: 0.8rem;
+}
+
+/* ── Cards ───────────────────────────────────── */
+.card {
+    border-radius: 8px;
+}
+
+.card-header {
+    border-radius: 8px 8px 0 0 !important;
+}
+
+
+/* ── Filter bar ──────────────────────────────── */
+.filter-label {
+    font-size: 0.72rem;
+    font-weight: 600;
+}
+
+/* ── Table ───────────────────────────────────── */
+#headcountTable {
+    font-size: 0.78rem;
+}
+
+#headcountTable thead th {
+    font-weight: 600;
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    color: #495057;
+    white-space: nowrap;
+    border-bottom: 2px solid #dee2e6;
+    position: sticky;
+    top: 0;
+    background: #f8f9fa;
+    z-index: 1;
+    padding: 0.35rem 0.5rem;
+    cursor: pointer;
+    user-select: none;
+}
+
+#headcountTable thead th:hover {
+    background: #e9ecef;
+}
+
+#headcountTable thead th .sort-icon {
+    margin-left: 3px;
+    opacity: 0.3;
+    font-size: 0.65rem;
+}
+
+#headcountTable thead th.sort-active .sort-icon {
+    opacity: 1;
+    color: #1a73e8;
+}
+
+#headcountTable tbody td {
+    vertical-align: middle;
+    white-space: nowrap;
+    max-width: 180px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    padding: 0.3rem 0.5rem;
+}
+
+#headcountTable tbody tr:hover {
+    background-color: #e8f0fe !important;
+}
+
+.btn-edit-row {
+    padding: 0.1rem 0.4rem;
+    font-size: 0.72rem;
+}
+
+.table-responsive {
+    max-height: 42vh;
+    overflow-y: auto;
+}
+
+/* ── Badges ──────────────────────────────────── */
+.badge-billable {
+    background-color: #1b8a2d;
+    font-weight: 500;
+    font-size: 0.7rem;
+}
+
+.badge-nonbillable {
+    background-color: #dc3545;
+    font-weight: 500;
+    font-size: 0.7rem;
+}
+
+.badge-blocked {
+    background-color: #b71c1c;
+    font-weight: 500;
+    font-size: 0.7rem;
+}
+
+.badge-proposed {
+    background-color: #283593;
+    font-weight: 500;
+    font-size: 0.7rem;
+}
+
+.badge-other {
+    background-color: #6c757d;
+    font-weight: 500;
+    font-size: 0.7rem;
+}
+
+/* ── Notification status badges ────────────────── */
+.badge-notif-awaiting {
+    background-color: #f59e0b;
+    color: #fff;
+    font-weight: 500;
+    font-size: 0.68rem;
+}
+
+.badge-notif-approved {
+    background-color: #1b8a2d;
+    color: #fff;
+    font-weight: 500;
+    font-size: 0.68rem;
+}
+
+.badge-notif-rejected {
+    background-color: #dc3545;
+    color: #fff;
+    font-weight: 500;
+    font-size: 0.68rem;
+}
+
+.badge-notif-noresp {
+    background-color: #b71c1c;
+    color: #fff;
+    font-weight: 500;
+    font-size: 0.68rem;
+}
+
+.badge-notif-cancel {
+    background-color: #6c757d;
+    color: #fff;
+    font-weight: 500;
+    font-size: 0.68rem;
+}
+
+#notifTable {
+    font-size: 0.78rem;
+}
+
+#notifTable thead th {
+    font-weight: 600;
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    color: #495057;
+    background: #f8f9fa;
+    padding: 0.35rem 0.5rem;
+}
+
+#notifTable tbody td {
+    vertical-align: middle;
+    padding: 0.4rem 0.5rem;
+}
+
+#notifyPreview {
+    background: #fff;
+    padding: 0.5rem;
+    border-radius: 4px;
+    border: 1px solid #e9ecef;
+}
+
+.btn-notify-manager {
+    padding: 0.1rem 0.4rem;
+    font-size: 0.72rem;
+}
+
+/* ── Pagination ──────────────────────────────── */
+.pagination .page-link {
+    border-radius: 4px;
+    margin: 0 1px;
+    color: #1a73e8;
+    border: 1px solid #dee2e6;
+    padding: 0.15rem 0.45rem;
+    font-size: 0.75rem;
+}
+
+.pagination .page-item.active .page-link {
+    background: #1a73e8;
+    border-color: #1a73e8;
+}
+
+/* ── Edit Modal ──────────────────────────────── */
+#editModalBody .form-label {
+    font-weight: 600;
+    font-size: 0.8rem;
+    color: #495057;
+}
+
+#editModalBody .form-control:focus {
+    border-color: #1a73e8;
+    box-shadow: 0 0 0 0.2rem rgba(26, 115, 232, 0.15);
+}
+
+#editModalBody .form-control[readonly] {
+    background-color: #f8f9fa;
+    cursor: not-allowed;
+}
+
+/* ── Loading Overlay ─────────────────────────── */
+#loadingOverlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.6);
+    z-index: 9999;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+
+/* ── Select2 / Toasts ────────────────────────── */
+.select2-container--bootstrap-5 .select2-selection {
+    border-radius: 4px;
+    min-height: 30px;
+    font-size: 0.8rem;
+}
+
+.select2-container--bootstrap-5 .select2-selection--single .select2-selection__rendered {
+    padding: 0.15rem 0.5rem;
+    line-height: 1.6;
+}
+
+#toast-container > .toast-success {
+    background-color: #1b8a2d;
+}
+
+#toast-container > .toast-error {
+    background-color: #dc3545;
+}
+
+/* ── Demand Requisition Navbar Button ────────── */
+.btn-demand-req {
+    background: rgba(255, 255, 255, 0.15) !important;
+    border-color: rgba(255, 255, 255, 0.5) !important;
+    color: #fff !important;
+    font-weight: 600;
+    letter-spacing: 0.2px;
+    transition: all 0.2s ease;
+}
+
+.btn-demand-req:hover {
+    background: rgba(255, 255, 255, 0.95) !important;
+    border-color: #fff !important;
+    color: #1a73e8 !important;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+/* ── Demand Requisition Offcanvas ────────────── */
+#demandRequisitionPanel {
+    width: 400px;
+    border-left: none;
+    box-shadow: -4px 0 24px rgba(0, 0, 0, 0.12);
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+}
+
+#demandRequisitionPanel .offcanvas-header {
+    min-height: auto;
+    padding: 0.75rem 1rem;
+}
+
+.dr-header-icon {
+    width: 34px;
+    height: 34px;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1rem;
+    flex-shrink: 0;
+}
+
+.dr-body {
+    background: #f0f2f5;
+    padding: 1rem !important;
+}
+
+.dr-form-card {
+    border-radius: 8px !important;
+}
+
+.dr-label {
+    font-weight: 600;
+    font-size: 0.78rem;
+    color: #495057;
+    margin-bottom: 0.3rem;
+}
+
+#demandRequisitionPanel .form-control,
+#demandRequisitionPanel .form-select {
+    border-radius: 6px;
+    border: 1px solid #dee2e6;
+    font-size: 0.82rem;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+#demandRequisitionPanel .form-control:focus,
+#demandRequisitionPanel .form-select:focus {
+    border-color: #1a73e8;
+    box-shadow: 0 0 0 0.2rem rgba(26, 115, 232, 0.15);
+}
+
+#demandRequisitionPanel .form-control::placeholder {
+    color: #adb5bd;
+    font-size: 0.78rem;
+}
+
+.btn-save-sp {
+    background: var(--primary-gradient);
+    border: none;
+    color: #fff;
+    font-size: 0.82rem;
+    font-weight: 600;
+    padding: 0.45rem 1rem;
+    border-radius: 6px;
+    transition: all 0.2s ease;
+    box-shadow: 0 2px 6px rgba(26, 115, 232, 0.3);
+}
+
+.btn-save-sp:hover {
+    color: #fff;
+    box-shadow: 0 4px 12px rgba(26, 115, 232, 0.4);
+    transform: translateY(-1px);
+}
+
+.btn-save-sp:active {
+    transform: translateY(0);
+    box-shadow: 0 1px 4px rgba(26, 115, 232, 0.3);
+}
+
+@media (max-width: 576px) {
+    #demandRequisitionPanel {
+        width: 100%;
+    }
+}
+
+@media (max-width: 768px) {
+    .stat-icon {
+        width: 30px;
+        height: 30px;
+        font-size: 0.85rem;
+    }
+
+    .stat-value {
+        font-size: 1rem;
+    }
+
+    #headcountTable {
+        font-size: 0.72rem;
+    }
+
+    .table-responsive {
+        max-height: 35vh;
+    }
+}
+
+/* -- Add Employees (Bulk) Modal -------- */
+.add-emp-table {
+    font-size: .78rem;
+}
+.add-emp-table thead th {
+    font-weight: 600;
+    font-size: .72rem;
+    text-transform: uppercase;
+    letter-spacing: .02em;
+    color: #334155;
+    background: #f1f5f9;
+    white-space: nowrap;
+}
+.add-emp-table td {
+    padding: .25rem .35rem;
+    vertical-align: middle;
+}
+.add-emp-table .form-control-sm,
+.add-emp-table .form-select-sm {
+    font-size: .78rem;
+    padding: .2rem .4rem;
+    min-height: 28px;
+}
+.add-emp-table .btn-remove-new-emp {
+    font-size: 1rem;
+    line-height: 1;
+    transition: transform .15s ease;
+}
+.add-emp-table .btn-remove-new-emp:hover {
+    transform: scale(1.2);
+}
+#addEmployeesModal .modal-dialog {
+    max-width: 1300px;
+}
+#bulkPasteArea {
+    font-family: 'Consolas', 'Courier New', monospace;
+    font-size: .78rem;
+}
