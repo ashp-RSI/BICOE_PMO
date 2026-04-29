@@ -7,6 +7,8 @@ __pycache__/
 .token_cache.bin
 notifications.db
 *.db-journal
+*.db-shm
+*.db-wal
 .DS_Store
 Thumbs.db
 .idea/
