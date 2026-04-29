@@ -54,6 +54,7 @@ def create_app():
         time.sleep(2)
         with app.app_context():
             _init_demand_sheet(app.config)
+            _prewarm_cache(app.config)
 
     threading.Thread(target=_deferred_init, daemon=True).start()
 
@@ -150,3 +151,25 @@ def _init_demand_sheet(config):
             "Failed to initialize sheets — "
             "missing columns will be created on first write"
         )
+
+
+def _prewarm_cache(config):
+    """Fetch SharePoint data into cache at startup so the first user
+    request doesn't trigger a slow cold fetch."""
+    try:
+        from app.services.sharepoint_service import SharePointService
+
+        sp = SharePointService(config)
+
+        logger.info("Pre-warming headcount cache...")
+        hc_df = sp.get_dataframe()
+        cache.set("headcount_df", hc_df, timeout=900)
+        logger.info("Headcount cache warmed (%d rows)", len(hc_df))
+
+        demand_sheet = config.get("DEMAND_SHEET_NAME", "Demand Requisition")
+        logger.info("Pre-warming demand cache...")
+        demand_df = sp.get_demand_dataframe(demand_sheet)
+        cache.set("demand_df", demand_df, timeout=900)
+        logger.info("Demand cache warmed (%d rows)", len(demand_df))
+    except Exception:
+        logger.exception("Cache pre-warm failed — first request will fetch from SharePoint")

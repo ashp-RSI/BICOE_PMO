@@ -164,13 +164,16 @@ def _parse_employee_experience(raw_value):
         return None
 
 
+CACHE_TIMEOUT = 900
+
+
 def _get_cached_df():
     key = "headcount_df"
     df = cache.get(key)
     if df is None:
         sp = _get_service()
         df = sp.get_dataframe()
-        cache.set(key, df, timeout=300)
+        cache.set(key, df, timeout=CACHE_TIMEOUT)
     return df
 
 
@@ -181,7 +184,7 @@ def _get_cached_demand_df():
         sp = _get_service()
         sheet = current_app.config.get("DEMAND_SHEET_NAME", "Demand Requisition")
         df = sp.get_demand_dataframe(sheet)
-        cache.set(key, df, timeout=300)
+        cache.set(key, df, timeout=CACHE_TIMEOUT)
     return df
 
 
