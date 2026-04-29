@@ -1,5 +1,6 @@
 import atexit
 import logging
+import threading
 import time
 
 from flask import Flask
@@ -49,8 +50,12 @@ def create_app():
 
     _init_notifications(app)
 
-    with app.app_context():
-        _init_demand_sheet(app.config)
+    def _deferred_init():
+        time.sleep(2)
+        with app.app_context():
+            _init_demand_sheet(app.config)
+
+    threading.Thread(target=_deferred_init, daemon=True).start()
 
     return app
 
