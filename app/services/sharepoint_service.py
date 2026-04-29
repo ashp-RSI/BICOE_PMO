@@ -24,6 +24,8 @@ class SharePointService:
         self.host = config["SHAREPOINT_HOST"]
         self.client_id = config["MSAL_CLIENT_ID"]
         self.cache_file = config["TOKEN_CACHE_FILE"]
+        self._username = config.get("SHAREPOINT_USERNAME")
+        self._password = config.get("SHAREPOINT_PASSWORD")
 
         self._token_cache = msal.SerializableTokenCache()
         if os.path.exists(self.cache_file):
@@ -45,12 +47,25 @@ class SharePointService:
                 f.write(self._token_cache.serialize())
 
     def get_access_token(self):
-        """Return a valid access token, using cached accounts first."""
+        """Return a valid access token, using cached accounts first,
+        then username/password (ROPC) flow, then device code as last resort."""
         accounts = self._app.get_accounts()
         if accounts:
             result = self._app.acquire_token_silent(self._scopes, account=accounts[0])
             if result and "access_token" in result:
                 return result["access_token"]
+
+        if self._username and self._password:
+            logger.info("No cached token — using username/password auth for %s",
+                        self._username)
+            result = self._app.acquire_token_by_username_password(
+                self._username, self._password, scopes=self._scopes
+            )
+            if result and "access_token" in result:
+                self._save_cache()
+                return result["access_token"]
+            logger.warning("Username/password auth failed: %s",
+                           result.get("error_description", result.get("error", "Unknown")))
 
         flow = self._app.initiate_device_flow(scopes=self._scopes)
         if "user_code" not in flow:
