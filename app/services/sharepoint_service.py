@@ -26,6 +26,7 @@ class SharePointService:
         self.cache_file = config["TOKEN_CACHE_FILE"]
         self._username = config.get("SHAREPOINT_USERNAME")
         self._password = config.get("SHAREPOINT_PASSWORD")
+        self._is_azure = config.get("IS_AZURE", False)
 
         self._token_cache = msal.SerializableTokenCache()
         if os.path.exists(self.cache_file):
@@ -48,15 +49,16 @@ class SharePointService:
 
     def get_access_token(self):
         """Return a valid access token, using cached accounts first,
-        then username/password (ROPC) flow, then device code as last resort."""
+        then username/password (ROPC) flow, then device code (local only)."""
         accounts = self._app.get_accounts()
         if accounts:
             result = self._app.acquire_token_silent(self._scopes, account=accounts[0])
             if result and "access_token" in result:
+                logger.info("Token acquired from cache (silent)")
                 return result["access_token"]
 
         if self._username and self._password:
-            logger.info("No cached token — using username/password auth for %s",
+            logger.info("No cached token — trying username/password auth for %s",
                         self._username)
             result = self._app.acquire_token_by_username_password(
                 self._username, self._password, scopes=self._scopes
@@ -66,6 +68,13 @@ class SharePointService:
                 return result["access_token"]
             logger.warning("Username/password auth failed: %s",
                            result.get("error_description", result.get("error", "Unknown")))
+
+        if self._is_azure:
+            raise RuntimeError(
+                "No valid token cache found on Azure. "
+                "Please upload .token_cache.bin to /home/ via Kudu. "
+                "Generate it by running the app locally first."
+            )
 
         flow = self._app.initiate_device_flow(scopes=self._scopes)
         if "user_code" not in flow:
