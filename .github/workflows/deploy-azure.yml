@@ -18,25 +18,16 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Install dependencies
+      - name: Create virtual environment and install dependencies
         run: |
-          python -m pip install --upgrade pip
+          python -m venv antenv
+          source antenv/bin/activate
+          pip install --upgrade pip
           pip install -r requirements.txt
 
       - name: Zip artifact for deployment
         run: |
-          zip -r release.zip . -x ".git/*" "venv/*" ".env" ".token_cache.bin" "notifications.db" "__pycache__/*"
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: python-app
-          path: release.zip
-
-      - name: Download artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: python-app
+          zip -r release.zip . -x ".git/*" ".github/*" "venv/*" ".env" ".token_cache.bin" "notifications.db" "__pycache__/*" "*.pyc"
 
       - name: Deploy to Azure Web App
         uses: azure/webapps-deploy@v3
