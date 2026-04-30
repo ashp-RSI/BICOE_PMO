@@ -33,12 +33,55 @@ def _parse_iso(s):
         return None
 
 
-def _build_reminder_html(n, reminder_idx, max_reminders):
+def _build_action_buttons(notification_id, base_url, secret_key):
+    """Generate signed approve/reject button HTML for a reminder email."""
+    from itsdangerous import URLSafeTimedSerializer
+
+    s = URLSafeTimedSerializer(secret_key)
+    salt = "notif-action"
+    approve_token = s.dumps({"nid": notification_id, "act": "approve"}, salt=salt)
+    reject_token = s.dumps({"nid": notification_id, "act": "reject"}, salt=salt)
+    approve_url = f"{base_url}/api/notifications/action?token={approve_token}"
+    reject_url = f"{base_url}/api/notifications/action?token={reject_token}"
+    return f"""
+        <table cellpadding="0" cellspacing="0" border="0" style="margin-top:20px">
+          <tr>
+            <td style="padding-right:12px">
+              <a href="{approve_url}"
+                 style="background-color:#28a745;color:#ffffff;padding:12px 28px;
+                        text-decoration:none;border-radius:5px;font-weight:bold;
+                        display:inline-block;font-size:14px">
+                &#10004; Approve
+              </a>
+            </td>
+            <td>
+              <a href="{reject_url}"
+                 style="background-color:#dc3545;color:#ffffff;padding:12px 28px;
+                        text-decoration:none;border-radius:5px;font-weight:bold;
+                        display:inline-block;font-size:14px">
+                &#10008; Reject
+              </a>
+            </td>
+          </tr>
+        </table>
+        <p style="color:#888;font-size:11px;margin-top:8px">
+          Click a button above to respond directly, or reply to this email.
+        </p>
+    """
+
+
+def _build_reminder_html(n, reminder_idx, max_reminders,
+                         base_url=None, secret_key=None):
     emp_name = n.get("emp_name") or n["emp_code"]
     req_id = n.get("demand_req_id") or "N/A"
     customer = n.get("customer_name") or "N/A"
     sent_at_dt = _parse_iso(n.get("sent_at"))
     sent_str = sent_at_dt.strftime("%d %b %Y") if sent_at_dt else "earlier"
+
+    buttons = ""
+    if base_url and secret_key:
+        buttons = _build_action_buttons(n["id"], base_url, secret_key)
+
     return f"""
         <p>Hi {n.get('manager_name') or 'there'},</p>
         <p>This is a friendly reminder ({reminder_idx} of {max_reminders})
@@ -50,8 +93,7 @@ def _build_reminder_html(n, reminder_idx, max_reminders):
           <tr><td><b>Customer:</b></td><td>{customer}</td></tr>
           <tr><td><b>Originally sent:</b></td><td>{sent_str}</td></tr>
         </table>
-        <p>Please reply with <b>Yes</b> to approve the allocation or
-           <b>No</b> to decline.</p>
+        {buttons}
         <p style="color:#888;font-size:12px">
            — Internal Project Management Tool (automated reminder)
         </p>
@@ -60,7 +102,8 @@ def _build_reminder_html(n, reminder_idx, max_reminders):
 
 class ReminderWorker:
     def __init__(self, store: NotificationStore, sp_service_factory,
-                 reminder_days: int, max_reminders: int):
+                 reminder_days: int, max_reminders: int,
+                 app_base_url: str = "", secret_key: str = ""):
         """
         Args:
             store: NotificationStore instance.
@@ -68,11 +111,15 @@ class ReminderWorker:
                                 (used by EmailService for MSAL auth).
             reminder_days: days between reminder emails.
             max_reminders: total reminder emails after the initial one.
+            app_base_url: public URL for building approve/reject links.
+            secret_key: Flask SECRET_KEY for signing action tokens.
         """
         self.store = store
         self._sp_factory = sp_service_factory
         self.reminder_days = reminder_days
         self.max_reminders = max_reminders
+        self.app_base_url = app_base_url
+        self.secret_key = secret_key
 
     def run_once(self):
         """One pass over all awaiting notifications. Safe to call from a
@@ -123,7 +170,11 @@ class ReminderWorker:
                 )
                 if not subject.lower().startswith("reminder"):
                     subject = "Reminder: " + subject
-                html = _build_reminder_html(n, reminder_idx, self.max_reminders)
+                html = _build_reminder_html(
+                    n, reminder_idx, self.max_reminders,
+                    base_url=self.app_base_url,
+                    secret_key=self.secret_key,
+                )
 
                 email_svc.send_mail(
                     to_email=n["manager_email"],

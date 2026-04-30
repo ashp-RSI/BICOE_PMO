@@ -41,3 +41,7 @@ class Config:
         "NOTIF_FROM_NAME", "Internal Project Management Tool"
     )
     NOTIF_ENABLED = os.getenv("NOTIF_ENABLED", "true").lower() in ("1", "true", "yes")
+    NOTIF_TOKEN_MAX_AGE_DAYS = int(os.getenv("NOTIF_TOKEN_MAX_AGE_DAYS", "30"))
+
+    # Public base URL used to build clickable approve/reject links in emails
+    APP_BASE_URL = os.getenv("APP_BASE_URL", "http://localhost:5000").rstrip("/")

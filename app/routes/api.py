@@ -5,7 +5,8 @@ from datetime import date
 
 import numpy as np
 import pandas as pd
-from flask import Blueprint, current_app, jsonify, request
+from flask import Blueprint, current_app, jsonify, render_template, request
+from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 
 from app import cache
 from app.services.sharepoint_service import SharePointService
@@ -1150,6 +1151,66 @@ def _get_notification_store():
     return notification_store
 
 
+_ACTION_TOKEN_SALT = "notif-action"
+
+
+def _generate_action_token(notification_id, action):
+    """Create a signed, time-limited token encoding {nid, act}."""
+    s = URLSafeTimedSerializer(current_app.config["SECRET_KEY"])
+    return s.dumps({"nid": notification_id, "act": action},
+                   salt=_ACTION_TOKEN_SALT)
+
+
+def _verify_action_token(token):
+    """Verify and decode an action token.
+
+    Returns (payload_dict, error_message). On success error_message is None.
+    """
+    s = URLSafeTimedSerializer(current_app.config["SECRET_KEY"])
+    max_age = current_app.config.get("NOTIF_TOKEN_MAX_AGE_DAYS", 30) * 86400
+    try:
+        data = s.loads(token, salt=_ACTION_TOKEN_SALT, max_age=max_age)
+        return data, None
+    except SignatureExpired:
+        return None, "This link has expired. Please ask the team to resend."
+    except BadSignature:
+        return None, "Invalid or corrupted link."
+
+
+def _build_action_buttons_html(notification_id):
+    """Return an HTML snippet with Approve / Reject buttons for an email."""
+    base_url = current_app.config["APP_BASE_URL"]
+    approve_token = _generate_action_token(notification_id, "approve")
+    reject_token = _generate_action_token(notification_id, "reject")
+    approve_url = f"{base_url}/api/notifications/action?token={approve_token}"
+    reject_url = f"{base_url}/api/notifications/action?token={reject_token}"
+    return f"""
+        <table cellpadding="0" cellspacing="0" border="0" style="margin-top:20px">
+          <tr>
+            <td style="padding-right:12px">
+              <a href="{approve_url}"
+                 style="background-color:#28a745;color:#ffffff;padding:12px 28px;
+                        text-decoration:none;border-radius:5px;font-weight:bold;
+                        display:inline-block;font-size:14px">
+                &#10004; Approve
+              </a>
+            </td>
+            <td>
+              <a href="{reject_url}"
+                 style="background-color:#dc3545;color:#ffffff;padding:12px 28px;
+                        text-decoration:none;border-radius:5px;font-weight:bold;
+                        display:inline-block;font-size:14px">
+                &#10008; Reject
+              </a>
+            </td>
+          </tr>
+        </table>
+        <p style="color:#888;font-size:11px;margin-top:8px">
+          Click a button above to respond directly, or reply to this email.
+        </p>
+    """
+
+
 def _build_default_email(emp_row, demand_row):
     """Build a default subject + HTML body the user can edit in the modal.
 
@@ -1373,16 +1434,7 @@ def notify_manager_send():
                 )
             }), 409
 
-        # Send email via Graph
-        email_svc = EmailService(_get_service())
-        try:
-            send_result = email_svc.send_mail(
-                to_email=manager_email, subject=subject,
-                html_body=body_html, cc_emails=cc_emails, save_to_sent=True,
-            )
-        except EmailServiceError as e:
-            return jsonify({"error": str(e)}), 502
-
+        # Create notification first so we have an ID for the action buttons
         notif_id = store.create(
             emp_code=emp_code, emp_name=emp_name,
             emp_row_index=int(emp_row_index),
@@ -1391,6 +1443,23 @@ def notify_manager_send():
             manager_name=manager_name, manager_email=manager_email,
             resolution_method=resolution_method,
             cc_emails=cc_emails, subject=subject, body_html=body_html,
+        )
+
+        buttons_html = _build_action_buttons_html(notif_id)
+        email_body = body_html + buttons_html
+
+        email_svc = EmailService(_get_service())
+        try:
+            send_result = email_svc.send_mail(
+                to_email=manager_email, subject=subject,
+                html_body=email_body, cc_emails=cc_emails, save_to_sent=True,
+            )
+        except EmailServiceError as e:
+            store.delete(notif_id)
+            return jsonify({"error": str(e)}), 502
+
+        store.record_send_ids(
+            notif_id,
             conversation_id=send_result.get("conversation_id"),
             message_id=send_result.get("message_id"),
         )
@@ -1439,80 +1508,229 @@ def get_notification_for_employee(emp_row_index):
         return jsonify({"error": str(e)}), 500
 
 
-@api_bp.route("/notifications/<int:notification_id>/approve", methods=["POST"])
-def notification_approve(notification_id):
-    """Manager approved → mark employee Billable.
+def _perform_approve(notification_id, decided_by="user", note=""):
+    """Core approve logic shared by the dashboard API and email-link handler.
 
-    When a demand row is linked, the existing dual-sheet update flips both
-    the demand to 'Fulfilled' and the employee to 'Billable' atomically.
-    When no demand is linked (employee was Proposed without a Demand
-    Requisition row), the headcount row is updated on its own.
+    Returns (result_dict, http_status_code).
     """
-    try:
-        from app.services.notification_store import STATUS_APPROVED
+    from app.services.notification_store import STATUS_APPROVED
 
-        store = _get_notification_store()
-        n = store.get(notification_id)
-        if not n:
-            return jsonify({"error": "Notification not found"}), 404
+    store = _get_notification_store()
+    n = store.get(notification_id)
+    if not n:
+        return {"error": "Notification not found"}, 404
 
-        decided_by = (request.get_json() or {}).get("decided_by") or "user"
-        note = (request.get_json() or {}).get("note") or ""
+    if n["status"] != "awaiting_reply":
+        return {
+            "error": f"Already resolved ({n['status']})",
+            "already_decided": True,
+        }, 409
 
-        emp_code = _normalize_emp_code(n["emp_code"])
-        hc_df = _get_cached_df()
-        match = hc_df[
-            hc_df["Emp Code"].apply(_normalize_emp_code) == emp_code
-        ]
-        if match.empty:
-            return jsonify({"error": "Employee no longer in headcount"}), 404
-        emp_row_index = int(match.index[0])
-        emp_name = _clean_value(match.iloc[0].get("Emp Name")) or ""
+    emp_code = _normalize_emp_code(n["emp_code"])
+    hc_df = _get_cached_df()
+    match = hc_df[
+        hc_df["Emp Code"].apply(_normalize_emp_code) == emp_code
+    ]
+    if match.empty:
+        return {"error": "Employee no longer in headcount"}, 404
+    emp_row_index = int(match.index[0])
+    emp_name = _clean_value(match.iloc[0].get("Emp Name")) or ""
 
-        headcount_updates = {
-            "Billable/Non Billable": "Billable",
-            "Customer interview happened(Yes/No)": "Yes",
-            "Customer Selected(Yes/No)": "Yes",
-        }
+    headcount_updates = {
+        "Billable/Non Billable": "Billable",
+        "Customer interview happened(Yes/No)": "Yes",
+        "Customer Selected(Yes/No)": "Yes",
+    }
 
-        sp = _get_service()
-        sheet = current_app.config.get("DEMAND_SHEET_NAME", "Demand Requisition")
+    sp = _get_service()
+    sheet = current_app.config.get("DEMAND_SHEET_NAME", "Demand Requisition")
 
-        demand_idx = n.get("demand_row_index")
-        demand_still_valid = False
-        if demand_idx is not None:
-            demand_df = _get_cached_demand_df()
-            if demand_idx in demand_df.index:
-                demand_row = demand_df.loc[demand_idx]
-                mapped_code = _normalize_emp_code(
-                    demand_row.get("Mapped Emp Code")
-                )
-                if mapped_code == emp_code:
-                    demand_still_valid = True
-
-        if demand_still_valid:
-            demand_updates = {"Demand Status": "Fulfilled"}
-            sp.map_employee_to_demand(
-                sheet, int(demand_idx), demand_updates,
-                emp_row_index, headcount_updates,
+    demand_idx = n.get("demand_row_index")
+    demand_still_valid = False
+    if demand_idx is not None:
+        demand_df = _get_cached_demand_df()
+        if demand_idx in demand_df.index:
+            demand_row = demand_df.loc[demand_idx]
+            mapped_code = _normalize_emp_code(
+                demand_row.get("Mapped Emp Code")
             )
-            msg = f"{emp_name} ({emp_code}) approved — marked Billable, demand Fulfilled."
-        else:
-            sp.update_row(emp_row_index, headcount_updates)
-            msg = (
-                f"{emp_name} ({emp_code}) approved — marked Billable. "
-                f"(No demand row was linked.)"
-            )
+            if mapped_code == emp_code:
+                demand_still_valid = True
 
-        cache.delete("demand_df")
-        cache.delete("headcount_df")
-
-        store.update_status(
-            notification_id, STATUS_APPROVED,
-            decided_by=decided_by, decision_note=note,
+    if demand_still_valid:
+        demand_updates = {"Demand Status": "Fulfilled"}
+        sp.map_employee_to_demand(
+            sheet, int(demand_idx), demand_updates,
+            emp_row_index, headcount_updates,
+        )
+        msg = f"{emp_name} ({emp_code}) approved — marked Billable, demand Fulfilled."
+    else:
+        sp.update_row(emp_row_index, headcount_updates)
+        msg = (
+            f"{emp_name} ({emp_code}) approved — marked Billable. "
+            f"(No demand row was linked.)"
         )
 
-        return jsonify({"success": True, "message": msg})
+    cache.delete("demand_df")
+    cache.delete("headcount_df")
+
+    store.update_status(
+        notification_id, STATUS_APPROVED,
+        decided_by=decided_by, decision_note=note,
+    )
+
+    return {"success": True, "message": msg}, 200
+
+
+def _perform_reject(notification_id, decided_by="user", note=""):
+    """Core reject logic shared by the dashboard API and email-link handler.
+
+    Returns (result_dict, http_status_code).
+    """
+    from app.services.notification_store import STATUS_REJECTED
+
+    store = _get_notification_store()
+    n = store.get(notification_id)
+    if not n:
+        return {"error": "Notification not found"}, 404
+
+    if n["status"] != "awaiting_reply":
+        return {
+            "error": f"Already resolved ({n['status']})",
+            "already_decided": True,
+        }, 409
+
+    emp_code = n["emp_code"]
+    hc_df = _get_cached_df()
+    match = hc_df[hc_df["Emp Code"].apply(_normalize_emp_code) == emp_code]
+    if match.empty:
+        store.update_status(
+            notification_id, STATUS_REJECTED,
+            decided_by=decided_by,
+            decision_note=note + " (employee no longer in headcount)",
+        )
+        return {
+            "success": True,
+            "message": "Marked rejected (employee not in headcount)",
+        }, 200
+
+    emp_row_index = int(match.index[0])
+
+    sp = _get_service()
+    sheet = current_app.config.get("DEMAND_SHEET_NAME", "Demand Requisition")
+
+    demand_idx = n.get("demand_row_index")
+    if demand_idx is not None:
+        demand_df = _get_cached_demand_df()
+        if demand_idx in demand_df.index:
+            demand_updates = {
+                "Demand Status": "Open",
+                "Mapped Emp Code": "",
+                "Mapped Emp Name": "",
+                "Mapping Date": "",
+                "Fulfillment Type": "",
+            }
+            hc_updates = {"Billable/Non Billable": "Non-Billable"}
+            sp.map_employee_to_demand(
+                sheet, int(demand_idx), demand_updates,
+                emp_row_index, hc_updates,
+            )
+        else:
+            sp.update_row(
+                emp_row_index, {"Billable/Non Billable": "Non-Billable"}
+            )
+    else:
+        sp.update_row(
+            emp_row_index, {"Billable/Non Billable": "Non-Billable"}
+        )
+
+    cache.delete("demand_df")
+    cache.delete("headcount_df")
+
+    store.update_status(
+        notification_id, STATUS_REJECTED,
+        decided_by=decided_by, decision_note=note,
+    )
+
+    return {
+        "success": True,
+        "message": (
+            "Marked rejected. Demand reopened and employee reverted to "
+            "Non-Billable."
+        ),
+    }, 200
+
+
+# ── Email Action Link (one-click approve/reject from email) ──────────
+
+@api_bp.route("/notifications/action", methods=["GET"])
+def notification_action_from_email():
+    """Handle a manager clicking an Approve / Reject button in the email.
+
+    The token encodes the notification ID and action, signed with SECRET_KEY.
+    On success the manager sees a simple confirmation page.
+    """
+    token = request.args.get("token", "")
+    if not token:
+        return render_template("notification_action.html",
+                               success=False,
+                               message="Missing or invalid link."), 400
+
+    data, err = _verify_action_token(token)
+    if err:
+        return render_template("notification_action.html",
+                               success=False, message=err), 400
+
+    notification_id = data.get("nid")
+    action = data.get("act")
+    if action not in ("approve", "reject"):
+        return render_template("notification_action.html",
+                               success=False,
+                               message="Invalid action in link."), 400
+
+    try:
+        if action == "approve":
+            result, status = _perform_approve(
+                notification_id, decided_by="manager_email_link")
+        else:
+            result, status = _perform_reject(
+                notification_id, decided_by="manager_email_link")
+    except Exception as e:
+        logger.exception("Email action failed for notification %d",
+                         notification_id)
+        return render_template("notification_action.html",
+                               success=False,
+                               message=f"Something went wrong: {e}"), 500
+
+    if result.get("already_decided"):
+        return render_template("notification_action.html",
+                               success=False,
+                               message="This request has already been processed. "
+                                       "No further action is needed.")
+
+    if status >= 400:
+        return render_template("notification_action.html",
+                               success=False,
+                               message=result.get("error",
+                                                   "An error occurred.")), status
+
+    action_label = "Approved" if action == "approve" else "Rejected"
+    return render_template("notification_action.html",
+                           success=True,
+                           message=f"{action_label} successfully. "
+                                   f"{result.get('message', '')}")
+
+
+# ── Dashboard API wrappers (existing POST endpoints) ─────────────────
+
+@api_bp.route("/notifications/<int:notification_id>/approve", methods=["POST"])
+def notification_approve(notification_id):
+    """Manager approved via dashboard → mark employee Billable."""
+    try:
+        decided_by = (request.get_json() or {}).get("decided_by") or "user"
+        note = (request.get_json() or {}).get("note") or ""
+        result, status = _perform_approve(notification_id, decided_by, note)
+        return jsonify(result), status
     except Exception as e:
         logger.exception("Approve notification %d failed", notification_id)
         return jsonify({"error": str(e)}), 500
@@ -1520,77 +1738,12 @@ def notification_approve(notification_id):
 
 @api_bp.route("/notifications/<int:notification_id>/reject", methods=["POST"])
 def notification_reject(notification_id):
-    """Manager rejected → un-map the demand and revert the employee."""
+    """Manager rejected via dashboard → un-map demand and revert employee."""
     try:
-        from app.services.notification_store import STATUS_REJECTED
-
-        store = _get_notification_store()
-        n = store.get(notification_id)
-        if not n:
-            return jsonify({"error": "Notification not found"}), 404
-
         decided_by = (request.get_json() or {}).get("decided_by") or "user"
         note = (request.get_json() or {}).get("note") or ""
-
-        emp_code = n["emp_code"]
-        hc_df = _get_cached_df()
-        match = hc_df[hc_df["Emp Code"].apply(_normalize_emp_code) == emp_code]
-        if match.empty:
-            store.update_status(
-                notification_id, STATUS_REJECTED,
-                decided_by=decided_by,
-                decision_note=note + " (employee no longer in headcount)",
-            )
-            return jsonify({
-                "success": True,
-                "message": "Marked rejected (employee not in headcount)",
-            })
-
-        emp_row_index = int(match.index[0])
-
-        sp = _get_service()
-        sheet = current_app.config.get("DEMAND_SHEET_NAME", "Demand Requisition")
-
-        demand_idx = n.get("demand_row_index")
-        if demand_idx is not None:
-            demand_df = _get_cached_demand_df()
-            if demand_idx in demand_df.index:
-                demand_updates = {
-                    "Demand Status": "Open",
-                    "Mapped Emp Code": "",
-                    "Mapped Emp Name": "",
-                    "Mapping Date": "",
-                    "Fulfillment Type": "",
-                }
-                hc_updates = {"Billable/Non Billable": "Non-Billable"}
-                sp.map_employee_to_demand(
-                    sheet, int(demand_idx), demand_updates,
-                    emp_row_index, hc_updates,
-                )
-            else:
-                sp.update_row(
-                    emp_row_index, {"Billable/Non Billable": "Non-Billable"}
-                )
-        else:
-            sp.update_row(
-                emp_row_index, {"Billable/Non Billable": "Non-Billable"}
-            )
-
-        cache.delete("demand_df")
-        cache.delete("headcount_df")
-
-        store.update_status(
-            notification_id, STATUS_REJECTED,
-            decided_by=decided_by, decision_note=note,
-        )
-
-        return jsonify({
-            "success": True,
-            "message": (
-                "Marked rejected. Demand reopened and employee reverted to "
-                "Non-Billable."
-            ),
-        })
+        result, status = _perform_reject(notification_id, decided_by, note)
+        return jsonify(result), status
     except Exception as e:
         logger.exception("Reject notification %d failed", notification_id)
         return jsonify({"error": str(e)}), 500
@@ -1622,7 +1775,7 @@ def notification_cancel(notification_id):
 
 @api_bp.route("/notifications/<int:notification_id>/resend", methods=["POST"])
 def notification_resend(notification_id):
-    """Resend the original email and reset the reminder counter."""
+    """Resend the original email with fresh action buttons and reset reminders."""
     try:
         from app.services.email_service import EmailService, EmailServiceError
 
@@ -1631,12 +1784,15 @@ def notification_resend(notification_id):
         if not n:
             return jsonify({"error": "Notification not found"}), 404
 
+        buttons_html = _build_action_buttons_html(notification_id)
+        email_body = n["body_html"] + buttons_html
+
         email_svc = EmailService(_get_service())
         try:
             send_result = email_svc.send_mail(
                 to_email=n["manager_email"],
                 subject=n["subject"],
-                html_body=n["body_html"],
+                html_body=email_body,
                 cc_emails=n.get("cc_emails") or [],
                 save_to_sent=True,
             )

@@ -95,6 +95,8 @@ def _init_notifications(app):
             sp_service_factory=_sp_factory,
             reminder_days=config["NOTIF_REMINDER_DAYS"],
             max_reminders=config["NOTIF_MAX_REMINDERS"],
+            app_base_url=config.get("APP_BASE_URL", "http://localhost:5000"),
+            secret_key=config.get("SECRET_KEY", ""),
         )
 
         _scheduler = BackgroundScheduler(daemon=True, timezone="UTC")

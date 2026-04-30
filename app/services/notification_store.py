@@ -220,6 +220,26 @@ class NotificationStore:
                 (datetime.utcnow().isoformat(), notification_id),
             )
 
+    def delete(self, notification_id):
+        """Remove a notification row entirely (used when email send fails
+        immediately after creating the record)."""
+        with self._lock, self._connect() as conn:
+            conn.execute(
+                "DELETE FROM notifications WHERE id = ?", (notification_id,)
+            )
+
+    def record_send_ids(self, notification_id, *, conversation_id=None,
+                        message_id=None):
+        """Store the Graph conversation/message IDs captured after sending."""
+        with self._lock, self._connect() as conn:
+            conn.execute(
+                """UPDATE notifications
+                   SET conversation_id = COALESCE(?, conversation_id),
+                       message_id = COALESCE(?, message_id)
+                   WHERE id = ?""",
+                (conversation_id, message_id, notification_id),
+            )
+
     def reset_for_resend(self, notification_id, *, conversation_id=None,
                         message_id=None, sent_at=None):
         """Reset a notification to awaiting_reply on a manual resend."""
