@@ -31,7 +31,7 @@ class Config:
         "/home/notifications.db" if _IS_AZURE
         else os.path.join(_PROJECT_ROOT, "notifications.db")
     )
-    NOTIF_REMINDER_DAYS = int(os.getenv("NOTIF_REMINDER_DAYS", "2"))
+    NOTIF_REMINDER_DAYS = int(os.getenv("NOTIF_REMINDER_DAYS", "7"))
     NOTIF_MAX_REMINDERS = int(os.getenv("NOTIF_MAX_REMINDERS", "3"))
     NOTIF_POLL_INTERVAL_MINUTES = int(
         os.getenv("NOTIF_POLL_INTERVAL_MINUTES", "30")

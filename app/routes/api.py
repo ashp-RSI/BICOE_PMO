@@ -1212,12 +1212,7 @@ def _build_action_buttons_html(notification_id):
 
 
 def _build_default_email(emp_row, demand_row):
-    """Build a default subject + HTML body the user can edit in the modal.
-
-    When `demand_row` is None (the employee is Proposed without a linked
-    Demand Requisition row), the requisition table is omitted so the email
-    reads naturally. When it's present, full demand context is included.
-    """
+    """Build a default subject + HTML body the user can edit in the modal."""
     emp_name = str(emp_row.get("Emp Name") or "").strip()
     emp_code = str(emp_row.get("Emp Code") or "").strip()
     skills = str(emp_row.get("Skills") or "").strip()
@@ -1226,59 +1221,30 @@ def _build_default_email(emp_row, demand_row):
     projects = str(emp_row.get("Projects") or "").strip()
     customer_on_emp = str(emp_row.get("Customer Name") or "").strip()
 
-    today = date.today().strftime("%d %b %Y")
+    project_name = projects or customer_on_emp or "an upcoming allocation"
 
-    has_demand = demand_row is not None
-    req_id = str(demand_row.get("Requisition ID") or "").strip() if has_demand else ""
-    customer = str(demand_row.get("Customer Name") or "").strip() if has_demand else ""
-    skillset = str(demand_row.get("Skillset") or "").strip() if has_demand else ""
-
-    if has_demand:
-        subject = (
-            f"Allocation Approval Needed — {emp_name} ({emp_code})"
-            + (f" → {req_id}" if req_id else "")
+    project_or_customer_row = ""
+    if projects or customer_on_emp:
+        project_or_customer_row = (
+            f"<tr><td><b>Project / Customer:</b></td>"
+            f"<td>{projects or customer_on_emp}</td></tr>"
         )
-        html = f"""
-            <p>Hi,</p>
-            <p><b>{emp_name}</b> (Emp Code: <b>{emp_code}</b>, Sub-Practice: {sub_practice or 'N/A'})
-               has been <b>proposed</b> for the requisition below.</p>
-            <table cellpadding="6" style="border-collapse:collapse;font-size:13px;border:1px solid #ddd">
-              <tr><td><b>Requisition ID:</b></td><td>{req_id or 'N/A'}</td></tr>
-              <tr><td><b>Customer:</b></td><td>{customer or 'N/A'}</td></tr>
-              <tr><td><b>Skillset Requested:</b></td><td>{skillset or 'N/A'}</td></tr>
-              <tr><td><b>Employee Skills:</b></td><td>{skills or 'N/A'}</td></tr>
-              <tr><td><b>Employee Experience:</b></td><td>{experience or 'N/A'}</td></tr>
-              <tr><td><b>Proposal Date:</b></td><td>{today}</td></tr>
-            </table>
-            <p>Could you please confirm whether the allocation should proceed?
-               Reply with <b>Yes</b> to approve or <b>No</b> to reject.</p>
-            <p>Thanks.</p>
-        """
-    else:
-        # No linked Demand Requisition — emphasise this is an internal proposal
-        subject = f"Allocation Approval Needed — {emp_name} ({emp_code})"
-        project_or_customer_row = ""
-        if projects or customer_on_emp:
-            project_or_customer_row = (
-                f"<tr><td><b>Project / Customer:</b></td>"
-                f"<td>{projects or customer_on_emp}</td></tr>"
-            )
-        html = f"""
-            <p>Hi,</p>
-            <p><b>{emp_name}</b> (Emp Code: <b>{emp_code}</b>, Sub-Practice: {sub_practice or 'N/A'})
-               has been internally <b>proposed</b> for an upcoming allocation.</p>
-            <table cellpadding="6" style="border-collapse:collapse;font-size:13px;border:1px solid #ddd">
-              <tr><td><b>Employee Skills:</b></td><td>{skills or 'N/A'}</td></tr>
-              <tr><td><b>Employee Experience:</b></td><td>{experience or 'N/A'}</td></tr>
-              {project_or_customer_row}
-              <tr><td><b>Proposal Date:</b></td><td>{today}</td></tr>
-            </table>
-            <p><i>Note: this proposal is not currently linked to a formal
-               Demand Requisition record.</i></p>
-            <p>Could you please confirm whether the allocation should proceed?
-               Reply with <b>Yes</b> to approve or <b>No</b> to reject.</p>
-            <p>Thanks.</p>
-        """
+
+    subject = f"Allocation Approval Needed — {emp_name} ({emp_code})"
+    html = f"""
+        <p>Hi,</p>
+        <p><b>{emp_name}</b> (Emp Code: <b>{emp_code}</b>, Sub-Practice: {sub_practice or 'N/A'})
+           has been <b>proposed</b> for {project_name}.</p>
+        <p>Please confirm whether the allocation should proceed?</p>
+        <p>Reply with <b>Yes</b> to approve or <b>No</b> to reject.</p>
+        <table cellpadding="6" style="border-collapse:collapse;font-size:13px;border:1px solid #ddd">
+          <tr><td><b>Employee Skills:</b></td><td>{skills or 'N/A'}</td></tr>
+          <tr><td><b>Employee Experience:</b></td><td>{experience or 'N/A'}</td></tr>
+          {project_or_customer_row}
+        </table>
+        <p>Please <u>Note</u> : Allocation priority will be considered based on the earliest confirmed start
+           date in case of multiple proposals.</p>
+    """
     return subject, html
 
 
@@ -1822,4 +1788,417 @@ def manager_email_audit():
         return jsonify({"data": rows, "total": len(rows)})
     except Exception as e:
         logger.exception("Manager email audit failed")
+        return jsonify({"error": str(e)}), 500
+
+
+# ── Blocked Employee Allocation Check ────────────────────────────────
+
+def _build_blocked_email(emp_row):
+    """Build default subject + HTML body for blocked employee allocation check."""
+    emp_name = str(emp_row.get("Emp Name") or "").strip()
+    emp_code = str(emp_row.get("Emp Code") or "").strip()
+    skills = str(emp_row.get("Skills") or "").strip()
+    sub_practice = str(emp_row.get("Sub Practice") or "").strip()
+    experience = str(emp_row.get("Experience") or "").strip()
+    projects = str(emp_row.get("Projects") or "").strip()
+    customer = str(emp_row.get("Customer Name") or "").strip()
+
+    project_name = projects or customer or "an upcoming allocation"
+
+    project_or_customer_row = ""
+    if projects or customer:
+        project_or_customer_row = (
+            f"<tr><td><b>Project / Customer:</b></td>"
+            f"<td>{projects or customer}</td></tr>"
+        )
+
+    subject = f"Allocation Status Check — {emp_name} ({emp_code})"
+    html = f"""
+        <p>Hi,</p>
+        <p><b>{emp_name}</b> (Emp Code: <b>{emp_code}</b>, Sub-Practice: {sub_practice or 'N/A'})
+           has been <b>Blocked</b> for {project_name}.</p>
+        <p>Please confirm the allocation start date.</p>
+        <table cellpadding="6" style="border-collapse:collapse;font-size:13px;border:1px solid #ddd">
+          <tr><td><b>Employee Skills:</b></td><td>{skills or 'N/A'}</td></tr>
+          <tr><td><b>Employee Experience:</b></td><td>{experience or 'N/A'}</td></tr>
+          {project_or_customer_row}
+        </table>
+    """
+    return subject, html
+
+
+def _build_blocked_action_buttons_html(notification_id):
+    """Return HTML with Yes (opens form) / No (one-click) buttons for blocked flow."""
+    base_url = current_app.config["APP_BASE_URL"]
+    confirm_token = _generate_action_token(notification_id, "confirm_blocked")
+    reject_token = _generate_action_token(notification_id, "reject_blocked")
+    confirm_url = f"{base_url}/api/notifications/blocked-action?token={confirm_token}"
+    reject_url = f"{base_url}/api/notifications/blocked-action?token={reject_token}"
+    return f"""
+        <table cellpadding="0" cellspacing="0" border="0" style="margin-top:20px">
+          <tr>
+            <td style="padding-right:12px">
+              <a href="{confirm_url}"
+                 style="background-color:#28a745;color:#ffffff;padding:12px 28px;
+                        text-decoration:none;border-radius:5px;font-weight:bold;
+                        display:inline-block;font-size:14px">
+                &#10004; Yes, Allocation Completed
+              </a>
+            </td>
+            <td>
+              <a href="{reject_url}"
+                 style="background-color:#dc3545;color:#ffffff;padding:12px 28px;
+                        text-decoration:none;border-radius:5px;font-weight:bold;
+                        display:inline-block;font-size:14px">
+                &#10008; No
+              </a>
+            </td>
+          </tr>
+        </table>
+        <p style="color:#888;font-size:11px;margin-top:8px">
+          Click a button above to respond directly, or reply to this email.
+        </p>
+    """
+
+
+@api_bp.route("/notify-blocked/preview/<int:emp_row_index>", methods=["GET"])
+def notify_blocked_preview(emp_row_index):
+    """Resolve manager email and build default email for a Blocked employee."""
+    try:
+        from app.services import manager_resolver
+
+        hc_df = _get_cached_df()
+        if emp_row_index not in hc_df.index:
+            return jsonify({"error": "Employee not found"}), 404
+
+        emp_row = hc_df.loc[emp_row_index]
+        bl_status = str(emp_row.get("Billable/Non Billable") or "").strip()
+        if bl_status != "Blocked":
+            return jsonify({
+                "error": (
+                    "Employee is not in 'Blocked' status. "
+                    f"Current status: '{bl_status or 'unknown'}'."
+                )
+            }), 400
+
+        threshold = current_app.config.get("NOTIF_FUZZY_THRESHOLD", 90)
+        resolution = manager_resolver.resolve_manager_email(
+            emp_row, hc_df, fuzzy_threshold=threshold
+        )
+
+        subject, html_body = _build_blocked_email(emp_row)
+        company_email = str(emp_row.get("Company Email") or "").strip()
+
+        return jsonify({
+            "emp_row_index": emp_row_index,
+            "emp_code": str(emp_row.get("Emp Code") or ""),
+            "emp_name": str(emp_row.get("Emp Name") or ""),
+            "manager_resolution": resolution,
+            "default_to": resolution.get("manager_email", ""),
+            "default_cc": [company_email] if company_email else [],
+            "subject": subject,
+            "body_html": html_body,
+        })
+    except Exception as e:
+        logger.exception("Notify blocked preview failed")
+        return jsonify({"error": str(e)}), 500
+
+
+@api_bp.route("/notify-blocked", methods=["POST"])
+def notify_blocked_send():
+    """Send allocation-check email for a Blocked employee and create tracking record."""
+    try:
+        from app.services.email_service import EmailService, EmailServiceError
+        from app.services.notification_store import (
+            STATUS_AWAITING, NOTIF_TYPE_BLOCKED,
+        )
+
+        store = _get_notification_store()
+        data = request.get_json() or {}
+
+        emp_row_index = data.get("emp_row_index")
+        manager_email = (data.get("manager_email") or "").strip()
+        cc_emails = data.get("cc_emails") or []
+        subject = (data.get("subject") or "").strip()
+        body_html = data.get("body_html") or ""
+        resolution_method = (data.get("resolution_method") or "manual").strip()
+        manager_name_override = (data.get("manager_name") or "").strip()
+
+        if emp_row_index is None:
+            return jsonify({"error": "emp_row_index is required"}), 400
+        if not manager_email:
+            return jsonify({"error": "Manager email is required"}), 400
+        if not subject or not body_html:
+            return jsonify({"error": "Subject and body cannot be empty"}), 400
+
+        hc_df = _get_cached_df()
+        if emp_row_index not in hc_df.index:
+            return jsonify({"error": "Employee not found"}), 404
+
+        emp_row = hc_df.loc[emp_row_index]
+        bl_status = str(emp_row.get("Billable/Non Billable") or "").strip()
+        if bl_status != "Blocked":
+            return jsonify({
+                "error": (
+                    "Employee is no longer in 'Blocked' status. "
+                    f"Current status: '{bl_status or 'unknown'}'."
+                )
+            }), 400
+
+        emp_code = _normalize_emp_code(emp_row.get("Emp Code"))
+        emp_name = _clean_value(emp_row.get("Emp Name")) or ""
+        manager_name = (
+            manager_name_override
+            or str(emp_row.get("First Line Manager") or "").strip()
+        )
+
+        existing = store.get_active_for_employee(emp_code)
+        if existing:
+            return jsonify({
+                "error": (
+                    f"An active notification already exists for this "
+                    f"employee (sent {existing['sent_at']}). Use Resend "
+                    f"or Stop Reminders instead."
+                )
+            }), 409
+
+        notif_id = store.create(
+            emp_code=emp_code, emp_name=emp_name,
+            emp_row_index=int(emp_row_index),
+            demand_row_index=None, demand_req_id="",
+            customer_name="", manager_name=manager_name,
+            manager_email=manager_email,
+            resolution_method=resolution_method,
+            cc_emails=cc_emails, subject=subject, body_html=body_html,
+            notification_type=NOTIF_TYPE_BLOCKED,
+        )
+
+        buttons_html = _build_blocked_action_buttons_html(notif_id)
+        email_body = body_html + buttons_html
+
+        email_svc = EmailService(_get_service())
+        try:
+            send_result = email_svc.send_mail(
+                to_email=manager_email, subject=subject,
+                html_body=email_body, cc_emails=cc_emails, save_to_sent=True,
+            )
+        except EmailServiceError as e:
+            store.delete(notif_id)
+            return jsonify({"error": str(e)}), 502
+
+        store.record_send_ids(
+            notif_id,
+            conversation_id=send_result.get("conversation_id"),
+            message_id=send_result.get("message_id"),
+        )
+
+        return jsonify({
+            "success": True,
+            "notification_id": notif_id,
+            "status": STATUS_AWAITING,
+            "message": f"Allocation check email sent to {manager_email}",
+        })
+    except Exception as e:
+        logger.exception("Notify-blocked send failed")
+        return jsonify({"error": str(e)}), 500
+
+
+def _perform_blocked_approve(notification_id, allocation_date,
+                             decided_by="user", note=""):
+    """Blocked employee confirmed as allocated → update to Billable."""
+    from app.services.notification_store import STATUS_APPROVED
+
+    store = _get_notification_store()
+    n = store.get(notification_id)
+    if not n:
+        return {"error": "Notification not found"}, 404
+
+    if n["status"] != "awaiting_reply":
+        return {
+            "error": f"Already resolved ({n['status']})",
+            "already_decided": True,
+        }, 409
+
+    emp_code = _normalize_emp_code(n["emp_code"])
+    hc_df = _get_cached_df()
+    match = hc_df[hc_df["Emp Code"].apply(_normalize_emp_code) == emp_code]
+    if match.empty:
+        return {"error": "Employee no longer in headcount"}, 404
+
+    emp_row_index = int(match.index[0])
+    emp_name = _clean_value(match.iloc[0].get("Emp Name")) or ""
+
+    sp = _get_service()
+    sp.update_row(emp_row_index, {
+        "Billable/Non Billable": "Billable",
+        "Billable Till Date": allocation_date,
+        "Customer interview happened(Yes/No)": "Yes",
+        "Customer Selected(Yes/No)": "Yes",
+    })
+
+    cache.delete("headcount_df")
+
+    store.record_allocation_response(notification_id, allocation_date)
+    store.update_status(
+        notification_id, STATUS_APPROVED,
+        decided_by=decided_by,
+        decision_note=note or f"Allocation confirmed. Date: {allocation_date}",
+    )
+
+    return {
+        "success": True,
+        "message": (
+            f"{emp_name} ({emp_code}) allocation confirmed — "
+            f"status updated to Billable (date: {allocation_date})."
+        ),
+    }, 200
+
+
+def _perform_blocked_reject(notification_id, decided_by="user", note=""):
+    """Manager says allocation NOT completed → keep as Blocked."""
+    from app.services.notification_store import STATUS_REJECTED
+
+    store = _get_notification_store()
+    n = store.get(notification_id)
+    if not n:
+        return {"error": "Notification not found"}, 404
+
+    if n["status"] != "awaiting_reply":
+        return {
+            "error": f"Already resolved ({n['status']})",
+            "already_decided": True,
+        }, 409
+
+    store.update_status(
+        notification_id, STATUS_REJECTED,
+        decided_by=decided_by,
+        decision_note=note or "Manager confirmed allocation not completed",
+    )
+
+    return {
+        "success": True,
+        "message": "Noted — employee will remain as Blocked.",
+    }, 200
+
+
+@api_bp.route("/notifications/blocked-action", methods=["GET"])
+def blocked_action_from_email():
+    """Handle manager clicking Yes/No in blocked employee allocation email."""
+    token = request.args.get("token", "")
+    if not token:
+        return render_template("blocked_action.html",
+                               step="error",
+                               message="Missing or invalid link."), 400
+
+    data, err = _verify_action_token(token)
+    if err:
+        return render_template("blocked_action.html",
+                               step="error", message=err), 400
+
+    notification_id = data.get("nid")
+    action = data.get("act")
+
+    if action == "reject_blocked":
+        try:
+            result, status = _perform_blocked_reject(
+                notification_id, decided_by="manager_email_link")
+        except Exception as e:
+            logger.exception("Blocked reject failed for notification %d",
+                             notification_id)
+            return render_template("blocked_action.html", step="error",
+                                   message=f"Something went wrong: {e}"), 500
+
+        if result.get("already_decided"):
+            return render_template("blocked_action.html", step="done",
+                                   success=False,
+                                   message="This request has already been processed.")
+        return render_template("blocked_action.html", step="done",
+                               success=status < 400,
+                               message=result.get("message") or result.get("error"))
+
+    if action == "confirm_blocked":
+        store = _get_notification_store()
+        n = store.get(notification_id)
+        if n and n["status"] != "awaiting_reply":
+            return render_template("blocked_action.html", step="done",
+                                   success=False,
+                                   message="This request has already been processed.")
+        return render_template("blocked_action.html", step="form",
+                               token=token, notification_id=notification_id)
+
+    return render_template("blocked_action.html", step="error",
+                           message="Invalid action in link."), 400
+
+
+@api_bp.route("/notifications/blocked-action", methods=["POST"])
+def blocked_action_submit():
+    """Process the allocation-confirmed form submission from the manager."""
+    token = request.form.get("token", "")
+    allocation_date = request.form.get("allocation_date", "").strip()
+
+    data, err = _verify_action_token(token)
+    if err:
+        return render_template("blocked_action.html",
+                               step="error", message=err), 400
+
+    notification_id = data.get("nid")
+
+    if not allocation_date:
+        return render_template("blocked_action.html", step="form",
+                               token=token, notification_id=notification_id,
+                               error="Please provide the allocation completion date.")
+
+    try:
+        result, status = _perform_blocked_approve(
+            notification_id, allocation_date=allocation_date,
+            decided_by="manager_email_link")
+    except Exception as e:
+        logger.exception("Blocked approve failed for notification %d",
+                         notification_id)
+        return render_template("blocked_action.html", step="error",
+                               message=f"Something went wrong: {e}"), 500
+
+    if result.get("already_decided"):
+        return render_template("blocked_action.html", step="done",
+                               success=False,
+                               message="This request has already been processed.")
+
+    return render_template("blocked_action.html", step="done",
+                           success=status < 400,
+                           message=result.get("message") or result.get("error"))
+
+
+@api_bp.route("/notifications/<int:notification_id>/blocked-approve",
+              methods=["POST"])
+def notification_blocked_approve(notification_id):
+    """Dashboard-triggered approve for a blocked employee notification."""
+    try:
+        data = request.get_json() or {}
+        allocation_date = (data.get("allocation_date") or "").strip()
+        if not allocation_date:
+            return jsonify({"error": "allocation_date is required"}), 400
+        decided_by = data.get("decided_by") or "user"
+        note = data.get("note") or ""
+        result, status = _perform_blocked_approve(
+            notification_id, allocation_date, decided_by, note)
+        return jsonify(result), status
+    except Exception as e:
+        logger.exception("Blocked approve notification %d failed",
+                         notification_id)
+        return jsonify({"error": str(e)}), 500
+
+
+@api_bp.route("/notifications/<int:notification_id>/blocked-reject",
+              methods=["POST"])
+def notification_blocked_reject(notification_id):
+    """Dashboard-triggered reject for a blocked employee notification."""
+    try:
+        decided_by = (request.get_json() or {}).get("decided_by") or "user"
+        note = (request.get_json() or {}).get("note") or ""
+        result, status = _perform_blocked_reject(
+            notification_id, decided_by, note)
+        return jsonify(result), status
+    except Exception as e:
+        logger.exception("Blocked reject notification %d failed",
+                         notification_id)
         return jsonify({"error": str(e)}), 500

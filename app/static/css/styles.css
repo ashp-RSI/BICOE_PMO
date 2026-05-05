@@ -198,6 +198,95 @@ body {
     box-shadow: 0 0 0 1px #6f42c1, 0 3px 10px rgba(111, 66, 193, 0.15) !important;
 }
 
+/* ── Quick Summary Strip ────────────────────── */
+.summary-strip {
+    background: #fff;
+    border-bottom: 1px solid #e2e6ea;
+    padding: 6px 0;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+}
+
+.summary-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.78rem;
+}
+
+.summary-item i {
+    font-size: 0.85rem;
+}
+
+.summary-label {
+    color: #6c757d;
+    font-weight: 500;
+}
+
+.summary-value {
+    font-weight: 700;
+    color: #212529;
+    font-size: 0.85rem;
+}
+
+.summary-divider {
+    width: 1px;
+    height: 18px;
+    background: #dee2e6;
+}
+
+.text-purple {
+    color: #6f42c1 !important;
+}
+
+/* ── KPI Section Cards ─────────────────────── */
+.kpi-section-card {
+    background: #fff;
+    border-radius: 8px;
+    border-left: 4px solid #dee2e6;
+    padding: 10px 14px;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+}
+
+.kpi-section-blue {
+    border-left-color: #1a73e8;
+}
+
+.kpi-section-green {
+    border-left-color: #1b8a2d;
+}
+
+.kpi-section-purple {
+    border-left-color: #6f42c1;
+}
+
+.kpi-section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    cursor: pointer;
+    user-select: none;
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: #495057;
+}
+
+.kpi-section-header:hover {
+    color: #212529;
+}
+
+.kpi-collapse-icon {
+    transition: transform 0.25s ease;
+    font-size: 0.7rem;
+    color: #6c757d;
+}
+
+.kpi-section-header[aria-expanded="false"] .kpi-collapse-icon,
+.collapsed .kpi-collapse-icon {
+    transform: rotate(180deg);
+}
+
 /* ── Tabs ────────────────────────────────────── */
 .nav-tabs-custom {
     border-bottom: 2px solid #dee2e6;

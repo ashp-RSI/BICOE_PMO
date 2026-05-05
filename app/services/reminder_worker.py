@@ -33,12 +33,47 @@ def _parse_iso(s):
         return None
 
 
-def _build_action_buttons(notification_id, base_url, secret_key):
-    """Generate signed approve/reject button HTML for a reminder email."""
+def _build_action_buttons(notification_id, base_url, secret_key,
+                          notification_type="proposed"):
+    """Generate signed action button HTML for a reminder email."""
     from itsdangerous import URLSafeTimedSerializer
 
     s = URLSafeTimedSerializer(secret_key)
     salt = "notif-action"
+
+    if notification_type == "blocked":
+        confirm_token = s.dumps(
+            {"nid": notification_id, "act": "confirm_blocked"}, salt=salt)
+        reject_token = s.dumps(
+            {"nid": notification_id, "act": "reject_blocked"}, salt=salt)
+        confirm_url = f"{base_url}/api/notifications/blocked-action?token={confirm_token}"
+        reject_url = f"{base_url}/api/notifications/blocked-action?token={reject_token}"
+        return f"""
+            <table cellpadding="0" cellspacing="0" border="0" style="margin-top:20px">
+              <tr>
+                <td style="padding-right:12px">
+                  <a href="{confirm_url}"
+                     style="background-color:#28a745;color:#ffffff;padding:12px 28px;
+                            text-decoration:none;border-radius:5px;font-weight:bold;
+                            display:inline-block;font-size:14px">
+                    &#10004; Yes, Allocation Completed
+                  </a>
+                </td>
+                <td>
+                  <a href="{reject_url}"
+                     style="background-color:#dc3545;color:#ffffff;padding:12px 28px;
+                            text-decoration:none;border-radius:5px;font-weight:bold;
+                            display:inline-block;font-size:14px">
+                    &#10008; No
+                  </a>
+                </td>
+              </tr>
+            </table>
+            <p style="color:#888;font-size:11px;margin-top:8px">
+              Click a button above to respond directly, or reply to this email.
+            </p>
+        """
+
     approve_token = s.dumps({"nid": notification_id, "act": "approve"}, salt=salt)
     reject_token = s.dumps({"nid": notification_id, "act": "reject"}, salt=salt)
     approve_url = f"{base_url}/api/notifications/action?token={approve_token}"
@@ -77,23 +112,42 @@ def _build_reminder_html(n, reminder_idx, max_reminders,
     customer = n.get("customer_name") or "N/A"
     sent_at_dt = _parse_iso(n.get("sent_at"))
     sent_str = sent_at_dt.strftime("%d %b %Y") if sent_at_dt else "earlier"
+    notification_type = n.get("notification_type") or "proposed"
 
     buttons = ""
     if base_url and secret_key:
-        buttons = _build_action_buttons(n["id"], base_url, secret_key)
+        buttons = _build_action_buttons(
+            n["id"], base_url, secret_key, notification_type=notification_type)
+
+    if notification_type == "blocked":
+        return f"""
+            <p>Hi,</p>
+            <p>This is a friendly reminder ({reminder_idx} of {max_reminders})
+               regarding <b>{emp_name}</b> ({n['emp_code']}) who has been
+               <b>Blocked</b> — we haven't received your response yet.</p>
+            <p>Please confirm the allocation start date.</p>
+            <table cellpadding="6" style="border-collapse:collapse;font-size:13px;border:1px solid #ddd">
+              <tr><td><b>Originally sent:</b></td><td>{sent_str}</td></tr>
+            </table>
+            {buttons}
+            <p style="color:#888;font-size:12px">
+               — Internal Project Management Tool (automated reminder)
+            </p>
+        """
 
     return f"""
-        <p>Hi {n.get('manager_name') or 'there'},</p>
+        <p>Hi,</p>
         <p>This is a friendly reminder ({reminder_idx} of {max_reminders})
-           regarding the proposed allocation below — we haven't received your
-           confirmation yet.</p>
-        <table cellpadding="6" style="border-collapse:collapse;font-size:13px">
-          <tr><td><b>Employee:</b></td><td>{emp_name} ({n['emp_code']})</td></tr>
-          <tr><td><b>Requisition:</b></td><td>{req_id}</td></tr>
-          <tr><td><b>Customer:</b></td><td>{customer}</td></tr>
+           regarding the proposed allocation for <b>{emp_name}</b> ({n['emp_code']})
+           — we haven't received your confirmation yet.</p>
+        <p>Please confirm whether the allocation should proceed?</p>
+        <p>Reply with <b>Yes</b> to approve or <b>No</b> to reject.</p>
+        <table cellpadding="6" style="border-collapse:collapse;font-size:13px;border:1px solid #ddd">
           <tr><td><b>Originally sent:</b></td><td>{sent_str}</td></tr>
         </table>
         {buttons}
+        <p>Please <u>Note</u> : Allocation priority will be considered based on the earliest confirmed start
+           date in case of multiple proposals.</p>
         <p style="color:#888;font-size:12px">
            — Internal Project Management Tool (automated reminder)
         </p>

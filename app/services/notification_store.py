@@ -23,6 +23,10 @@ STATUS_CANCELLED = "cancelled"
 
 ACTIVE_STATUSES = {STATUS_AWAITING}
 
+# Notification type constants
+NOTIF_TYPE_PROPOSED = "proposed"
+NOTIF_TYPE_BLOCKED = "blocked"
+
 _SCHEMA_SQL = """
 CREATE TABLE IF NOT EXISTS notifications (
   id                INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -77,6 +81,19 @@ class NotificationStore:
     def _init_schema(self):
         with self._lock, self._connect() as conn:
             conn.executescript(_SCHEMA_SQL)
+            self._upgrade_schema(conn)
+
+    def _upgrade_schema(self, conn):
+        """Add columns introduced after the initial schema."""
+        upgrades = [
+            "ALTER TABLE notifications ADD COLUMN notification_type TEXT DEFAULT 'proposed'",
+            "ALTER TABLE notifications ADD COLUMN allocation_date TEXT",
+        ]
+        for sql in upgrades:
+            try:
+                conn.execute(sql)
+            except sqlite3.OperationalError:
+                pass
 
     @staticmethod
     def _row_to_dict(row):
@@ -97,8 +114,10 @@ class NotificationStore:
     def create(self, *, emp_code, emp_name, emp_row_index, demand_row_index,
                demand_req_id, customer_name, manager_name, manager_email,
                resolution_method, cc_emails, subject, body_html,
-               conversation_id=None, message_id=None, sent_at=None):
+               conversation_id=None, message_id=None, sent_at=None,
+               notification_type=None):
         sent_at = sent_at or datetime.utcnow().isoformat()
+        notification_type = notification_type or NOTIF_TYPE_PROPOSED
         cc_json = json.dumps(cc_emails or [])
         with self._lock, self._connect() as conn:
             cur = conn.execute(
@@ -109,8 +128,8 @@ class NotificationStore:
                     manager_name, manager_email, resolution_method,
                     cc_emails, subject, body_html,
                     conversation_id, message_id,
-                    status, reminder_count, sent_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)
+                    status, reminder_count, sent_at, notification_type
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)
                 """,
                 (
                     str(emp_code), emp_name, emp_row_index,
@@ -118,7 +137,7 @@ class NotificationStore:
                     manager_name, manager_email, resolution_method,
                     cc_json, subject, body_html,
                     conversation_id, message_id,
-                    STATUS_AWAITING, sent_at,
+                    STATUS_AWAITING, sent_at, notification_type,
                 ),
             )
             return cur.lastrowid
@@ -258,4 +277,12 @@ class NotificationStore:
                     STATUS_AWAITING, sent_at, conversation_id, message_id,
                     notification_id,
                 ),
+            )
+
+    def record_allocation_response(self, notification_id, allocation_date):
+        """Store the allocation completion date from the manager's response."""
+        with self._lock, self._connect() as conn:
+            conn.execute(
+                """UPDATE notifications SET allocation_date = ? WHERE id = ?""",
+                (allocation_date, notification_id),
             )

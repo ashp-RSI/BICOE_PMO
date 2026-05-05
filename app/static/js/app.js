@@ -168,6 +168,11 @@ $(document).ready(function () {
             animateCounter("#internalProjectCount", resp.internal_project_count);
             animateCounter("#solutionOfferingCount", resp.solution_offering_count);
             animateCounter("#otherCount", resp.other);
+
+            $("#summaryTotal").text(resp.total);
+            $("#summaryBillable").text(resp.billable);
+            $("#summaryNonBillable").text(resp.non_billable);
+            $("#summaryBlocked").text(resp.blocked);
         });
     }
 
@@ -178,6 +183,8 @@ $(document).ready(function () {
             animateCounter("#dfInternallyFulfilled", resp.internally_fulfilled);
             animateCounter("#dfExternallyFulfilled", resp.externally_fulfilled);
             animateCounter("#dfExternalRaised", resp.external_raised);
+
+            $("#summaryOpenDemands").text(resp.open_demands);
         });
     }
 
@@ -274,27 +281,42 @@ $(document).ready(function () {
     }
 
     function renderNotifyButton(row) {
-        if ((row["Billable/Non Billable"] || "") !== "Proposed") return "";
+        const blStatus = (row["Billable/Non Billable"] || "").trim();
+        const isProposed = blStatus === "Proposed";
+        const isBlocked = blStatus === "Blocked";
+        if (!isProposed && !isBlocked) return "";
+
         const n = row._notification;
         const empName = escapeHtml(String(row["Emp Name"] || ""));
         const empCode = escapeHtml(String(row["Emp Code"] || ""));
         const empRow = row.row_index;
 
-        if (!n || n.status !== "awaiting_reply") {
-            const badgeHtml = n ? renderNotifBadge(n.status) + " " : "";
-            return `${badgeHtml}<button class="btn btn-success btn-sm btn-notify-manager"
+        if (n && n.status === "awaiting_reply") {
+            const days = relativeDays(n.sent_at);
+            return `<span class="badge badge-notif-awaiting me-1" title="Sent ${escapeHtml(n.sent_at || '')} • ${n.reminder_count || 0} reminder(s)">
+                        <i class="bi bi-hourglass-split"></i> ${days} • ${n.reminder_count || 0}r
+                    </span>`;
+        }
+
+        const badgeHtml = n ? renderNotifBadge(n.status) + " " : "";
+
+        if (isBlocked) {
+            return `${badgeHtml}<button class="btn btn-warning btn-sm btn-check-allocation"
                         data-emp-row="${empRow}"
                         data-emp-name="${empName}"
                         data-emp-code="${empCode}"
-                        title="Notify First Line Manager">
-                    <i class="bi bi-send-fill"></i>
+                        title="Check Allocation Status">
+                    <i class="bi bi-question-circle-fill"></i>
                 </button>`;
         }
-        // awaiting_reply
-        const days = relativeDays(n.sent_at);
-        return `<span class="badge badge-notif-awaiting me-1" title="Sent ${escapeHtml(n.sent_at || '')} • ${n.reminder_count || 0} reminder(s)">
-                    <i class="bi bi-hourglass-split"></i> ${days} • ${n.reminder_count || 0}r
-                </span>`;
+
+        return `${badgeHtml}<button class="btn btn-success btn-sm btn-notify-manager"
+                    data-emp-row="${empRow}"
+                    data-emp-name="${empName}"
+                    data-emp-code="${empCode}"
+                    title="Notify First Line Manager">
+                <i class="bi bi-send-fill"></i>
+            </button>`;
     }
 
     function renderNotifBadge(status) {
@@ -1452,7 +1474,7 @@ $(document).ready(function () {
     function renderNotifTable(rows) {
         if (!rows.length) {
             $("#notifTableBody").html(
-                '<tr><td colspan="9" class="text-center py-3 text-muted small">No notifications</td></tr>'
+                '<tr><td colspan="10" class="text-center py-3 text-muted small">No notifications</td></tr>'
             );
             return;
         }
@@ -1460,11 +1482,15 @@ $(document).ready(function () {
         rows.forEach(function (n, i) {
             const empLbl = `${escapeHtml(n.emp_name || "")} <span class="text-muted">(${escapeHtml(n.emp_code || "")})</span>`;
             const sent = n.sent_at ? n.sent_at.replace("T", " ").substr(0, 16) : "";
+            const typeBadge = n.notification_type === "blocked"
+                ? '<span class="badge bg-warning text-dark">Blocked</span>'
+                : '<span class="badge bg-info text-dark">Proposed</span>';
             html += `<tr>
                 <td class="small text-muted">${i + 1}</td>
                 <td class="small">${empLbl}</td>
-                <td class="small">${escapeHtml(n.demand_req_id || "")}</td>
-                <td class="small">${escapeHtml(n.customer_name || "")}</td>
+                <td class="small text-center">${typeBadge}</td>
+                <td class="small">${escapeHtml(n.demand_req_id || "—")}</td>
+                <td class="small">${escapeHtml(n.customer_name || "—")}</td>
                 <td class="small">${escapeHtml(n.manager_name || "")}<br><span class="text-muted">${escapeHtml(n.manager_email || "")}</span></td>
                 <td class="small">${escapeHtml(sent)}</td>
                 <td class="small text-center">${n.reminder_count || 0}</td>
@@ -1479,6 +1505,22 @@ $(document).ready(function () {
 
     function notifRowActions(n) {
         if (n.status === "awaiting_reply") {
+            const isBlocked = n.notification_type === "blocked";
+            if (isBlocked) {
+                return `
+                    <button class="btn btn-success btn-sm btn-notif-blocked-approve" data-id="${n.id}" title="Allocation completed">
+                        <i class="bi bi-check-circle"></i>
+                    </button>
+                    <button class="btn btn-secondary btn-sm btn-notif-blocked-reject" data-id="${n.id}" title="Not allocated">
+                        <i class="bi bi-x-circle"></i>
+                    </button>
+                    <button class="btn btn-outline-warning btn-sm btn-notif-resend" data-id="${n.id}" title="Resend now">
+                        <i class="bi bi-arrow-repeat"></i>
+                    </button>
+                    <button class="btn btn-outline-secondary btn-sm btn-notif-cancel" data-id="${n.id}" title="Stop reminders">
+                        <i class="bi bi-bell-slash"></i>
+                    </button>`;
+            }
             return `
                 <button class="btn btn-success btn-sm btn-notif-approve" data-id="${n.id}" title="Manager approved">
                     <i class="bi bi-check-circle"></i>
@@ -1507,6 +1549,117 @@ $(document).ready(function () {
         });
     }
 
+    // ── Blocked Allocation Check ────────────────────────────────
+    function openBlockedModal(empRow, empName, empCode) {
+        $("#blockedEmpLabel").text(`${empName} (${empCode})`);
+        $("#blockedEmpRowIndex").val(empRow);
+        $("#blockedTo").val("");
+        $("#blockedCc").val("");
+        $("#blockedSubject").val("");
+        $("#blockedBody").val("");
+        $("#blockedPreview").html('<em class="text-muted">Loading…</em>');
+        $("#blockedResolutionAlert").addClass("d-none").removeClass("alert-success alert-warning alert-danger alert-info");
+
+        const modal = new bootstrap.Modal(document.getElementById("blockedAllocationModal"));
+        modal.show();
+
+        $.getJSON(`/api/notify-blocked/preview/${empRow}`, function (resp) {
+            const r = resp.manager_resolution || {};
+            $("#blockedManagerName").val(r.manager_name || "");
+            $("#blockedManagerNameLabel").text(
+                r.manager_name ? `Manager: ${r.manager_name}` : "Manager not specified on row"
+            );
+            $("#blockedResolutionMethod").val(r.method || "manual");
+            $("#blockedTo").val(resp.default_to || "");
+            $("#blockedCc").val((resp.default_cc || []).join(", "));
+            $("#blockedSubject").val(resp.subject || "");
+            $("#blockedBody").val(resp.body_html || "");
+            renderBlockedPreview();
+
+            const $a = $("#blockedResolutionAlert").removeClass("d-none alert-success alert-warning alert-danger alert-info");
+            const status = r.status;
+            if (status === "ok" || status === "ok_disambiguated") {
+                $a.addClass("alert-success").html(
+                    `<i class="bi bi-check-circle-fill me-1"></i>Manager email auto-resolved.`
+                );
+            } else if (status === "ok_fuzzy") {
+                $a.addClass("alert-warning").html(
+                    `<i class="bi bi-exclamation-triangle-fill me-1"></i>Fuzzy match (score ${r.fuzzy_score}). Please verify the email.`
+                );
+            } else if (status === "multiple_matches") {
+                const opts = (r.candidates || []).map(c => `${c[0]} <${c[1] || 'no email'}>`).join("; ");
+                $a.addClass("alert-warning").html(
+                    `<i class="bi bi-exclamation-triangle-fill me-1"></i>Multiple matches. Please pick the correct email.<br><small>Candidates: ${escapeHtml(opts)}</small>`
+                );
+            } else {
+                $a.addClass("alert-danger").html(
+                    `<i class="bi bi-x-circle-fill me-1"></i>Could not auto-resolve manager email — please enter it manually.`
+                );
+            }
+        }).fail(function (xhr) {
+            const err = xhr.responseJSON ? xhr.responseJSON.error : "Failed to load preview";
+            toastr.error(err);
+            modal.hide();
+        });
+    }
+
+    function renderBlockedPreview() {
+        $("#blockedPreview").html($("#blockedBody").val() || '<em class="text-muted">(empty)</em>');
+    }
+
+    function sendBlockedMail() {
+        const empRow = parseInt($("#blockedEmpRowIndex").val());
+        const to = ($("#blockedTo").val() || "").trim();
+        const cc = ($("#blockedCc").val() || "").split(",").map(s => s.trim()).filter(Boolean);
+        const subject = ($("#blockedSubject").val() || "").trim();
+        const body = $("#blockedBody").val() || "";
+
+        if (!to) { toastr.warning("Manager email is required"); return; }
+        if (!subject) { toastr.warning("Subject is required"); return; }
+        if (!body.trim()) { toastr.warning("Body cannot be empty"); return; }
+        if (!confirm(`Send allocation check email to ${to}?`)) return;
+
+        showLoading();
+        $.ajax({
+            url: "/api/notify-blocked",
+            method: "POST",
+            contentType: "application/json",
+            data: JSON.stringify({
+                emp_row_index: empRow,
+                manager_email: to,
+                manager_name: $("#blockedManagerName").val() || "",
+                cc_emails: cc,
+                subject: subject,
+                body_html: body,
+                resolution_method: $("#blockedResolutionMethod").val() || "manual",
+            }),
+            success: function (resp) {
+                hideLoading();
+                bootstrap.Modal.getInstance(document.getElementById("blockedAllocationModal")).hide();
+                toastr.success(resp.message || "Email sent");
+                loadData();
+                refreshNotifAwaitingBadge();
+                if ($("#pane-notifications").hasClass("show")) loadNotifications();
+            },
+            error: function (xhr) {
+                hideLoading();
+                const err = xhr.responseJSON ? xhr.responseJSON.error : "Send failed";
+                toastr.error(err);
+            }
+        });
+    }
+
+    $(document).on("click", ".btn-check-allocation", function () {
+        const empRow = parseInt($(this).data("emp-row"));
+        const empName = $(this).data("emp-name") || "";
+        const empCode = $(this).data("emp-code") || "";
+        openBlockedModal(empRow, empName, empCode);
+    });
+
+    $("#btnBlockedPreview").click(renderBlockedPreview);
+    $("#blockedBody").on("input blur", renderBlockedPreview);
+    $("#btnBlockedSend").click(sendBlockedMail);
+
     // ── Notification action handlers ──────────────────────────
     $(document).on("click", ".btn-notify-manager", function () {
         const empRow = parseInt($(this).data("emp-row"));
@@ -1520,7 +1673,7 @@ $(document).ready(function () {
     $("#btnNotifySend").click(sendNotifyMail);
 
     $("#notifyManagerModal").on("show.bs.modal", function () {
-        $("#notifyReminderDays").text("2");
+        $("#notifyReminderDays").text("7");
         $("#notifyMaxReminders").text("3");
     });
 
@@ -1554,6 +1707,23 @@ $(document).ready(function () {
         const id = $(this).data("id");
         if (!confirm("Stop sending reminders for this notification? No data will be changed.")) return;
         notifAction(id, "cancel", {});
+    });
+
+    $(document).on("click", ".btn-notif-blocked-approve", function () {
+        const id = $(this).data("id");
+        const allocDate = prompt("Enter allocation completion date (YYYY-MM-DD):", new Date().toISOString().slice(0, 10));
+        if (allocDate === null) return;
+        if (!allocDate.trim()) { toastr.warning("Allocation date is required"); return; }
+        if (!confirm("Mark allocation as completed? Employee will be set to Billable.")) return;
+        notifAction(id, "blocked-approve", { allocation_date: allocDate.trim() });
+    });
+
+    $(document).on("click", ".btn-notif-blocked-reject", function () {
+        const id = $(this).data("id");
+        const note = prompt("Optional note:", "");
+        if (note === null) return;
+        if (!confirm("Mark as not allocated? Employee will remain Blocked.")) return;
+        notifAction(id, "blocked-reject", { note: note });
     });
 
     $(document).on("click", ".btn-notif-resend", function () {
@@ -1610,4 +1780,19 @@ $(document).ready(function () {
     function hideLoading() {
         $("#loadingOverlay").removeClass("d-flex").addClass("d-none");
     }
+
+    // Rotate chevron icons on KPI section collapse/expand
+    $(".kpi-section-header").on("click", function () {
+        var $icon = $(this).find(".kpi-collapse-icon");
+        var target = $(this).data("bs-target");
+        var $target = $(target);
+        $target.on("shown.bs.collapse hidden.bs.collapse", function () {
+            if ($target.hasClass("show")) {
+                $icon.css("transform", "rotate(0deg)");
+            } else {
+                $icon.css("transform", "rotate(180deg)");
+            }
+            $target.off("shown.bs.collapse hidden.bs.collapse");
+        });
+    });
 });
