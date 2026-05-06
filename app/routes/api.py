@@ -165,16 +165,13 @@ def _parse_employee_experience(raw_value):
         return None
 
 
-CACHE_TIMEOUT = 900
-
-
 def _get_cached_df():
     key = "headcount_df"
     df = cache.get(key)
     if df is None:
         sp = _get_service()
         df = sp.get_dataframe()
-        cache.set(key, df, timeout=CACHE_TIMEOUT)
+        cache.set(key, df, timeout=0)
     return df
 
 
@@ -185,7 +182,7 @@ def _get_cached_demand_df():
         sp = _get_service()
         sheet = current_app.config.get("DEMAND_SHEET_NAME", "Demand Requisition")
         df = sp.get_demand_dataframe(sheet)
-        cache.set(key, df, timeout=CACHE_TIMEOUT)
+        cache.set(key, df, timeout=0)
     return df
 
 
@@ -1125,16 +1122,39 @@ def fulfill_external_demand():
 
 @api_bp.route("/refresh", methods=["POST"])
 def refresh_data():
-    """Force refresh data from SharePoint."""
+    """Force refresh data from SharePoint in a background thread.
+
+    The response returns immediately with the cached row count.
+    Fresh data is available within a few seconds when the background
+    fetch completes.
+    """
+    import threading
+    from app import _prewarm_cache
+
     try:
-        cache.delete("headcount_df")
-        cache.delete("demand_df")
+        app_config = current_app.config
+
+        def _bg_refresh():
+            from flask import Flask
+            app = current_app._get_current_object()
+            with app.app_context():
+                _prewarm_cache(app_config)
+
+        threading.Thread(target=_bg_refresh, daemon=True).start()
+
         df = _get_cached_df()
         if "Status" in df.columns:
             df = df[df["Status"].fillna("").astype(str).str.strip() != "Resigned"]
         if "Billable/Non Billable" in df.columns:
             df = df[df["Billable/Non Billable"].fillna("").astype(str).str.strip() != "Resigned"]
-        return jsonify({"success": True, "total_rows": len(df)})
+
+        last_refresh = cache.get("last_cache_refresh") or "Unknown"
+        return jsonify({
+            "success": True,
+            "total_rows": len(df),
+            "last_refresh": last_refresh,
+            "message": "Showing cached data. Background refresh started.",
+        })
     except Exception as e:
         logger.exception("Error refreshing data")
         return jsonify({"error": str(e)}), 500

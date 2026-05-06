@@ -879,13 +879,21 @@ $(document).ready(function () {
         const $btn = $(this);
         $btn.prop("disabled", true).html('<i class="bi bi-hourglass-split me-1"></i>Refreshing...');
         $.post("/api/refresh", function (resp) {
-            toastr.success(`Refreshed: ${resp.total_rows} rows loaded`);
+            toastr.info("Fetching latest data from SharePoint...");
             currentPage = 1;
             demandPage = 1;
             loadData();
             loadSummary();
             loadDemandSummary();
             if ($("#pane-demand").hasClass("show")) loadDemandData();
+
+            setTimeout(function () {
+                loadData();
+                loadSummary();
+                loadDemandSummary();
+                if ($("#pane-demand").hasClass("show")) loadDemandData();
+                toastr.success("Data refreshed from SharePoint");
+            }, 6000);
         }).fail(function () {
             toastr.error("Refresh failed");
         }).always(function () {

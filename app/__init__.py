@@ -15,6 +15,8 @@ _boot_ts = int(time.time())
 notification_store = None
 _scheduler = None
 
+CACHE_REFRESH_INTERVAL_MINUTES = 10
+
 DEMAND_HEADERS = [
     "Requisition ID", "Yrs of Exp", "Skillset", "Demand Status", "Notes",
     "Customer Name", "Fulfillment Type", "Mapped Emp Code", "Mapped Emp Name",
@@ -58,6 +60,8 @@ def create_app():
 
     threading.Thread(target=_deferred_init, daemon=True).start()
 
+    _start_cache_refresh_scheduler(app)
+
     return app
 
 
@@ -99,7 +103,9 @@ def _init_notifications(app):
             secret_key=config.get("SECRET_KEY", ""),
         )
 
-        _scheduler = BackgroundScheduler(daemon=True, timezone="UTC")
+        if _scheduler is None:
+            _scheduler = BackgroundScheduler(daemon=True, timezone="UTC")
+
         _scheduler.add_job(
             worker.run_once,
             trigger="interval",
@@ -109,7 +115,10 @@ def _init_notifications(app):
             max_instances=1,
             coalesce=True,
         )
-        _scheduler.start()
+
+        if not _scheduler.running:
+            _scheduler.start()
+
         logger.info(
             "Reminder scheduler started — every %d min, "
             "reminder cadence %d days, max %d reminders",
@@ -117,9 +126,6 @@ def _init_notifications(app):
             config["NOTIF_REMINDER_DAYS"],
             config["NOTIF_MAX_REMINDERS"],
         )
-
-        atexit.register(lambda: _scheduler.shutdown(wait=False)
-                        if _scheduler else None)
     except Exception:
         logger.exception("Failed to start reminder scheduler — reminders "
                          "will not run automatically")
@@ -156,8 +162,7 @@ def _init_demand_sheet(config):
 
 
 def _prewarm_cache(config):
-    """Fetch SharePoint data into cache at startup so the first user
-    request doesn't trigger a slow cold fetch."""
+    """Fetch SharePoint data into cache so user requests are instant."""
     try:
         from app.services.sharepoint_service import SharePointService
 
@@ -165,13 +170,58 @@ def _prewarm_cache(config):
 
         logger.info("Pre-warming headcount cache...")
         hc_df = sp.get_dataframe()
-        cache.set("headcount_df", hc_df, timeout=900)
+        cache.set("headcount_df", hc_df, timeout=0)
         logger.info("Headcount cache warmed (%d rows)", len(hc_df))
 
         demand_sheet = config.get("DEMAND_SHEET_NAME", "Demand Requisition")
         logger.info("Pre-warming demand cache...")
         demand_df = sp.get_demand_dataframe(demand_sheet)
-        cache.set("demand_df", demand_df, timeout=900)
+        cache.set("demand_df", demand_df, timeout=0)
         logger.info("Demand cache warmed (%d rows)", len(demand_df))
+
+        cache.set("last_cache_refresh", time.strftime("%Y-%m-%d %H:%M:%S"),
+                  timeout=0)
     except Exception:
         logger.exception("Cache pre-warm failed — first request will fetch from SharePoint")
+
+
+def _start_cache_refresh_scheduler(app):
+    """Start a background job that refreshes both caches from SharePoint
+    every CACHE_REFRESH_INTERVAL_MINUTES so users never wait."""
+    global _scheduler
+
+    try:
+        from apscheduler.schedulers.background import BackgroundScheduler
+
+        config = app.config
+
+        def _background_refresh():
+            with app.app_context():
+                logger.info("Background cache refresh starting...")
+                _prewarm_cache(config)
+                logger.info("Background cache refresh complete")
+
+        if _scheduler is None:
+            _scheduler = BackgroundScheduler(daemon=True, timezone="UTC")
+
+        _scheduler.add_job(
+            _background_refresh,
+            trigger="interval",
+            minutes=CACHE_REFRESH_INTERVAL_MINUTES,
+            id="cache_auto_refresh",
+            replace_existing=True,
+            max_instances=1,
+            coalesce=True,
+        )
+
+        if not _scheduler.running:
+            _scheduler.start()
+
+        logger.info("Background cache refresh scheduled — every %d minutes",
+                    CACHE_REFRESH_INTERVAL_MINUTES)
+
+        atexit.register(lambda: _scheduler.shutdown(wait=False)
+                        if _scheduler else None)
+    except Exception:
+        logger.exception("Failed to start cache refresh scheduler — "
+                         "manual refresh will still work")
