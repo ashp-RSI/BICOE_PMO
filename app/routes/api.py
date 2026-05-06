@@ -1122,38 +1122,30 @@ def fulfill_external_demand():
 
 @api_bp.route("/refresh", methods=["POST"])
 def refresh_data():
-    """Force refresh data from SharePoint in a background thread.
+    """Force refresh data from SharePoint.
 
-    The response returns immediately with the cached row count.
-    Fresh data is available within a few seconds when the background
-    fetch completes.
+    Clears the cache first so the next request fetches fresh data,
+    then fetches it synchronously and returns the result.
     """
-    import threading
-    from app import _prewarm_cache
-
     try:
-        app_config = current_app.config
-
-        def _bg_refresh():
-            from flask import Flask
-            app = current_app._get_current_object()
-            with app.app_context():
-                _prewarm_cache(app_config)
-
-        threading.Thread(target=_bg_refresh, daemon=True).start()
+        cache.delete("headcount_df")
+        cache.delete("demand_df")
 
         df = _get_cached_df()
+        _get_cached_demand_df()
+
         if "Status" in df.columns:
             df = df[df["Status"].fillna("").astype(str).str.strip() != "Resigned"]
         if "Billable/Non Billable" in df.columns:
             df = df[df["Billable/Non Billable"].fillna("").astype(str).str.strip() != "Resigned"]
 
-        last_refresh = cache.get("last_cache_refresh") or "Unknown"
+        import time
+        cache.set("last_cache_refresh", time.strftime("%Y-%m-%d %H:%M:%S"),
+                  timeout=0)
+
         return jsonify({
             "success": True,
             "total_rows": len(df),
-            "last_refresh": last_refresh,
-            "message": "Showing cached data. Background refresh started.",
         })
     except Exception as e:
         logger.exception("Error refreshing data")
