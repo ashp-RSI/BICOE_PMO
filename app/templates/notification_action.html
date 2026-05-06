@@ -30,6 +30,7 @@
     }
     .icon.success { color: #28a745; }
     .icon.error   { color: #dc3545; }
+    .icon.confirm { color: #1a73e8; }
     h1 {
       font-size: 1.35rem;
       color: #212529;
@@ -40,6 +41,29 @@
       color: #495057;
       line-height: 1.6;
     }
+    .emp-name {
+      font-weight: 700;
+      color: #212529;
+    }
+    .btn {
+      display: inline-block;
+      padding: 12px 32px;
+      border: none;
+      border-radius: 6px;
+      font-weight: bold;
+      font-size: 14px;
+      cursor: pointer;
+      margin-top: 1.5rem;
+      color: #fff;
+      text-decoration: none;
+      transition: background-color .2s, transform .1s;
+    }
+    .btn:hover { transform: translateY(-1px); }
+    .btn:active { transform: translateY(0); }
+    .btn-approve { background-color: #28a745; }
+    .btn-approve:hover { background-color: #218838; }
+    .btn-reject { background-color: #dc3545; }
+    .btn-reject:hover { background-color: #c82333; }
     .footer {
       margin-top: 2rem;
       font-size: .8rem;
@@ -49,14 +73,40 @@
 </head>
 <body>
   <div class="card">
-    {% if success %}
-      <div class="icon success">&#10004;</div>
-      <h1>Response Recorded</h1>
+    {% if step == "confirm" %}
+      <div class="icon confirm">&#9993;</div>
+      <h1>Confirm Your Decision</h1>
+      <p class="message">
+        You are about to
+        {% if action == "approve" %}
+          <strong style="color:#28a745">Approve</strong>
+        {% else %}
+          <strong style="color:#dc3545">Reject</strong>
+        {% endif %}
+        the allocation request for <span class="emp-name">{{ emp_name }}</span>.
+      </p>
+      <form method="POST" action="/api/notifications/action">
+        <input type="hidden" name="token" value="{{ token }}">
+        {% if action == "approve" %}
+          <button type="submit" class="btn btn-approve">Confirm Approval</button>
+        {% else %}
+          <button type="submit" class="btn btn-reject">Confirm Rejection</button>
+        {% endif %}
+      </form>
+    {% elif step == "done" %}
+      {% if success %}
+        <div class="icon success">&#10004;</div>
+        <h1>Response Recorded</h1>
+      {% else %}
+        <div class="icon error">&#10008;</div>
+        <h1>Unable to Process</h1>
+      {% endif %}
+      <p class="message">{{ message }}</p>
     {% else %}
       <div class="icon error">&#10008;</div>
       <h1>Unable to Process</h1>
+      <p class="message">{{ message }}</p>
     {% endif %}
-    <p class="message">{{ message }}</p>
     <p class="footer">Internal Project Management Tool</p>
   </div>
 </body>

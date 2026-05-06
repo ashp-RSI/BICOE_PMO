@@ -1623,30 +1623,42 @@ def _perform_reject(notification_id, decided_by="user", note=""):
 
 # ── Email Action Link (one-click approve/reject from email) ──────────
 
-@api_bp.route("/notifications/action", methods=["GET"])
+@api_bp.route("/notifications/action", methods=["GET", "POST"])
 def notification_action_from_email():
-    """Handle a manager clicking an Approve / Reject button in the email.
+    """Two-step approve/reject from email.
 
-    The token encodes the notification ID and action, signed with SECRET_KEY.
-    On success the manager sees a simple confirmation page.
+    GET  → shows a confirmation page with a button (safe from link pre-fetch).
+    POST → actually processes the approve/reject action.
     """
-    token = request.args.get("token", "")
+    token = request.args.get("token", "") or request.form.get("token", "")
     if not token:
-        return render_template("notification_action.html",
-                               success=False,
+        return render_template("notification_action.html", step="error",
                                message="Missing or invalid link."), 400
 
     data, err = _verify_action_token(token)
     if err:
-        return render_template("notification_action.html",
-                               success=False, message=err), 400
+        return render_template("notification_action.html", step="error",
+                               message=err), 400
 
     notification_id = data.get("nid")
     action = data.get("act")
     if action not in ("approve", "reject"):
-        return render_template("notification_action.html",
-                               success=False,
+        return render_template("notification_action.html", step="error",
                                message="Invalid action in link."), 400
+
+    store = _get_notification_store()
+    n = store.get(notification_id)
+
+    if n and n["status"] != "awaiting_reply":
+        return render_template("notification_action.html", step="done",
+                               success=False,
+                               message="This request has already been processed. "
+                                       "No further action is needed.")
+
+    if request.method == "GET":
+        emp_name = n["emp_name"] if n else "Unknown"
+        return render_template("notification_action.html", step="confirm",
+                               token=token, action=action, emp_name=emp_name)
 
     try:
         if action == "approve":
@@ -1658,24 +1670,24 @@ def notification_action_from_email():
     except Exception as e:
         logger.exception("Email action failed for notification %d",
                          notification_id)
-        return render_template("notification_action.html",
+        return render_template("notification_action.html", step="done",
                                success=False,
                                message=f"Something went wrong: {e}"), 500
 
     if result.get("already_decided"):
-        return render_template("notification_action.html",
+        return render_template("notification_action.html", step="done",
                                success=False,
                                message="This request has already been processed. "
                                        "No further action is needed.")
 
     if status >= 400:
-        return render_template("notification_action.html",
+        return render_template("notification_action.html", step="done",
                                success=False,
                                message=result.get("error",
                                                    "An error occurred.")), status
 
     action_label = "Approved" if action == "approve" else "Rejected"
-    return render_template("notification_action.html",
+    return render_template("notification_action.html", step="done",
                            success=True,
                            message=f"{action_label} successfully. "
                                    f"{result.get('message', '')}")
