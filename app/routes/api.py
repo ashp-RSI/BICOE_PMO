@@ -1178,7 +1178,7 @@ def _verify_action_token(token):
 
 
 def _build_action_buttons_html(notification_id):
-    """Return an HTML snippet with Approve / Reject buttons for an email."""
+    """Return an HTML snippet with Yes / No buttons for an email."""
     base_url = current_app.config["APP_BASE_URL"]
     approve_token = _generate_action_token(notification_id, "approve")
     reject_token = _generate_action_token(notification_id, "reject")
@@ -1192,7 +1192,7 @@ def _build_action_buttons_html(notification_id):
                  style="background-color:#28a745;color:#ffffff;padding:12px 28px;
                         text-decoration:none;border-radius:5px;font-weight:bold;
                         display:inline-block;font-size:14px">
-                &#10004; Approve
+                &#10004; Yes
               </a>
             </td>
             <td>
@@ -1200,7 +1200,7 @@ def _build_action_buttons_html(notification_id):
                  style="background-color:#dc3545;color:#ffffff;padding:12px 28px;
                         text-decoration:none;border-radius:5px;font-weight:bold;
                         display:inline-block;font-size:14px">
-                &#10008; Reject
+                &#10008; No
               </a>
             </td>
           </tr>
@@ -1216,6 +1216,7 @@ def _build_default_email(emp_row, demand_row):
     emp_name = str(emp_row.get("Emp Name") or "").strip()
     emp_code = str(emp_row.get("Emp Code") or "").strip()
     skills = str(emp_row.get("Skills") or "").strip()
+    grade = str(emp_row.get("Grade") or "").strip()
     sub_practice = str(emp_row.get("Sub Practice") or "").strip()
     experience = str(emp_row.get("Experience") or "").strip()
     projects = str(emp_row.get("Projects") or "").strip()
@@ -1223,27 +1224,20 @@ def _build_default_email(emp_row, demand_row):
 
     project_name = projects or customer_on_emp or "an upcoming allocation"
 
-    project_or_customer_row = ""
-    if projects or customer_on_emp:
-        project_or_customer_row = (
-            f"<tr><td><b>Project / Customer:</b></td>"
-            f"<td>{projects or customer_on_emp}</td></tr>"
-        )
-
     subject = f"Allocation Approval Needed — {emp_name} ({emp_code})"
     html = f"""
         <p>Hi,</p>
         <p><b>{emp_name}</b> (Emp Code: <b>{emp_code}</b>, Sub-Practice: {sub_practice or 'N/A'})
            has been <b>proposed</b> for {project_name}.</p>
         <p>Please confirm whether the allocation should proceed?</p>
-        <p>Reply with <b>Yes</b> to approve or <b>No</b> to reject.</p>
         <table cellpadding="6" style="border-collapse:collapse;font-size:13px;border:1px solid #ddd">
           <tr><td><b>Employee Skills:</b></td><td>{skills or 'N/A'}</td></tr>
           <tr><td><b>Employee Experience:</b></td><td>{experience or 'N/A'}</td></tr>
-          {project_or_customer_row}
+          <tr><td><b>Grade:</b></td><td>{grade or 'N/A'}</td></tr>
         </table>
         <p>Please <u>Note</u> : Allocation priority will be considered based on the earliest confirmed start
            date in case of multiple proposals.</p>
+        <p>Reply with <b>Yes</b> to approve or <b>No</b> to reject.</p>
     """
     return subject, html
 
@@ -1798,19 +1792,13 @@ def _build_blocked_email(emp_row):
     emp_name = str(emp_row.get("Emp Name") or "").strip()
     emp_code = str(emp_row.get("Emp Code") or "").strip()
     skills = str(emp_row.get("Skills") or "").strip()
+    grade = str(emp_row.get("Grade") or "").strip()
     sub_practice = str(emp_row.get("Sub Practice") or "").strip()
     experience = str(emp_row.get("Experience") or "").strip()
     projects = str(emp_row.get("Projects") or "").strip()
     customer = str(emp_row.get("Customer Name") or "").strip()
 
     project_name = projects or customer or "an upcoming allocation"
-
-    project_or_customer_row = ""
-    if projects or customer:
-        project_or_customer_row = (
-            f"<tr><td><b>Project / Customer:</b></td>"
-            f"<td>{projects or customer}</td></tr>"
-        )
 
     subject = f"Allocation Status Check — {emp_name} ({emp_code})"
     html = f"""
@@ -1821,7 +1809,7 @@ def _build_blocked_email(emp_row):
         <table cellpadding="6" style="border-collapse:collapse;font-size:13px;border:1px solid #ddd">
           <tr><td><b>Employee Skills:</b></td><td>{skills or 'N/A'}</td></tr>
           <tr><td><b>Employee Experience:</b></td><td>{experience or 'N/A'}</td></tr>
-          {project_or_customer_row}
+          <tr><td><b>Grade:</b></td><td>{grade or 'N/A'}</td></tr>
         </table>
     """
     return subject, html

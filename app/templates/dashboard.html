@@ -950,6 +950,14 @@
                         <div class="small text-muted mb-1"><i class="bi bi-eye"></i> Preview</div>
                         <div id="blockedPreview" class="small"></div>
                     </div>
+                    <div class="form-check small">
+                        <input class="form-check-input" type="checkbox" id="blockedEnableReminders" checked>
+                        <label class="form-check-label" for="blockedEnableReminders">
+                            Enable auto-reminders if no reply within
+                            <span class="fw-semibold" id="blockedReminderDays"></span>
+                            days (max <span id="blockedMaxReminders"></span> reminders)
+                        </label>
+                    </div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>

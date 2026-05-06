@@ -86,7 +86,7 @@ def _build_action_buttons(notification_id, base_url, secret_key,
                  style="background-color:#28a745;color:#ffffff;padding:12px 28px;
                         text-decoration:none;border-radius:5px;font-weight:bold;
                         display:inline-block;font-size:14px">
-                &#10004; Approve
+                &#10004; Yes
               </a>
             </td>
             <td>
@@ -94,7 +94,7 @@ def _build_action_buttons(notification_id, base_url, secret_key,
                  style="background-color:#dc3545;color:#ffffff;padding:12px 28px;
                         text-decoration:none;border-radius:5px;font-weight:bold;
                         display:inline-block;font-size:14px">
-                &#10008; Reject
+                &#10008; No
               </a>
             </td>
           </tr>
@@ -141,13 +141,13 @@ def _build_reminder_html(n, reminder_idx, max_reminders,
            regarding the proposed allocation for <b>{emp_name}</b> ({n['emp_code']})
            — we haven't received your confirmation yet.</p>
         <p>Please confirm whether the allocation should proceed?</p>
-        <p>Reply with <b>Yes</b> to approve or <b>No</b> to reject.</p>
         <table cellpadding="6" style="border-collapse:collapse;font-size:13px;border:1px solid #ddd">
           <tr><td><b>Originally sent:</b></td><td>{sent_str}</td></tr>
         </table>
-        {buttons}
         <p>Please <u>Note</u> : Allocation priority will be considered based on the earliest confirmed start
            date in case of multiple proposals.</p>
+        <p>Reply with <b>Yes</b> to approve or <b>No</b> to reject.</p>
+        {buttons}
         <p style="color:#888;font-size:12px">
            — Internal Project Management Tool (automated reminder)
         </p>

@@ -1660,6 +1660,11 @@ $(document).ready(function () {
     $("#blockedBody").on("input blur", renderBlockedPreview);
     $("#btnBlockedSend").click(sendBlockedMail);
 
+    $("#blockedAllocationModal").on("show.bs.modal", function () {
+        $("#blockedReminderDays").text("7");
+        $("#blockedMaxReminders").text("3");
+    });
+
     // ── Notification action handlers ──────────────────────────
     $(document).on("click", ".btn-notify-manager", function () {
         const empRow = parseInt($(this).data("emp-row"));
