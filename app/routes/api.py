@@ -1794,6 +1794,99 @@ def notification_resend(notification_id):
         return jsonify({"error": str(e)}), 500
 
 
+@api_bp.route("/notifications/<int:notification_id>/delete", methods=["POST"])
+def notification_delete(notification_id):
+    """Permanently delete a notification from the database."""
+    try:
+        store = _get_notification_store()
+        n = store.get(notification_id)
+        if not n:
+            return jsonify({"error": "Notification not found"}), 404
+
+        store.delete(notification_id)
+        return jsonify({
+            "success": True,
+            "message": f"Notification #{notification_id} deleted",
+        })
+    except Exception as e:
+        logger.exception("Delete notification %d failed", notification_id)
+        return jsonify({"error": str(e)}), 500
+
+
+@api_bp.route("/notifications/<int:notification_id>/override", methods=["POST"])
+def notification_override(notification_id):
+    """Override a resolved notification's status (Approve↔Reject).
+
+    Also updates the employee's Billable/Non-Billable in SharePoint.
+    """
+    try:
+        from app.services.notification_store import (
+            STATUS_APPROVED, STATUS_REJECTED,
+        )
+
+        data = request.get_json() or {}
+        new_action = data.get("action")
+        if new_action not in ("approve", "reject"):
+            return jsonify({"error": "action must be 'approve' or 'reject'"}), 400
+
+        store = _get_notification_store()
+        n = store.get(notification_id)
+        if not n:
+            return jsonify({"error": "Notification not found"}), 404
+
+        if n["status"] == "awaiting_reply":
+            return jsonify({"error": "Use the normal approve/reject for awaiting notifications"}), 400
+
+        emp_code = _normalize_emp_code(n["emp_code"])
+        hc_df = _get_cached_df()
+        match = hc_df[hc_df["Emp Code"].apply(_normalize_emp_code) == emp_code]
+        if match.empty:
+            return jsonify({"error": "Employee no longer in headcount"}), 404
+        emp_row_index = int(match.index[0])
+        emp_name = _clean_value(match.iloc[0].get("Emp Name")) or ""
+
+        sp = _get_service()
+
+        if new_action == "approve":
+            sp.update_row(emp_row_index, {"Billable/Non Billable": "Billable"})
+            store.update_status(
+                notification_id, STATUS_APPROVED,
+                decided_by="dashboard_override",
+                decision_note=data.get("note") or "Status overridden to Approved",
+            )
+            cache.delete("headcount_df")
+            return jsonify({
+                "success": True,
+                "message": f"{emp_name} overridden to Approved — marked Billable.",
+            })
+        else:
+            sp.update_row(emp_row_index, {"Billable/Non Billable": "Non-Billable"})
+
+            demand_row = n.get("demand_row_index")
+            if demand_row is not None:
+                try:
+                    sheet = current_app.config.get("DEMAND_SHEET_NAME", "Demand Requisition")
+                    sp.update_demand_row(sheet, demand_row, {"Demand Status": "Open"})
+                    cache.delete("demand_df")
+                except Exception:
+                    logger.warning("Could not reopen demand row %s during override",
+                                   demand_row, exc_info=True)
+
+            store.update_status(
+                notification_id, STATUS_REJECTED,
+                decided_by="dashboard_override",
+                decision_note=data.get("note") or "Status overridden to Rejected",
+            )
+            cache.delete("headcount_df")
+            return jsonify({
+                "success": True,
+                "message": f"{emp_name} overridden to Rejected — reverted to Non-Billable.",
+            })
+    except Exception as e:
+        logger.exception("Override notification %d failed", notification_id)
+        return jsonify({"error": str(e)}), 500
+
+
 @api_bp.route("/manager-email-audit", methods=["GET"])
 def manager_email_audit():
     """List employees whose manager email could not be auto-resolved."""

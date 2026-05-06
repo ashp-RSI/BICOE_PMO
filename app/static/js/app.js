@@ -1504,6 +1504,10 @@ $(document).ready(function () {
     }
 
     function notifRowActions(n) {
+        const deleteBtn = `<button class="btn btn-outline-danger btn-sm btn-notif-delete" data-id="${n.id}" title="Delete notification">
+                <i class="bi bi-trash"></i>
+            </button>`;
+
         if (n.status === "awaiting_reply") {
             const isBlocked = n.notification_type === "blocked";
             if (isBlocked) {
@@ -1519,7 +1523,8 @@ $(document).ready(function () {
                     </button>
                     <button class="btn btn-outline-secondary btn-sm btn-notif-cancel" data-id="${n.id}" title="Stop reminders">
                         <i class="bi bi-bell-slash"></i>
-                    </button>`;
+                    </button>
+                    ${deleteBtn}`;
             }
             return `
                 <button class="btn btn-success btn-sm btn-notif-approve" data-id="${n.id}" title="Manager approved">
@@ -1533,9 +1538,22 @@ $(document).ready(function () {
                 </button>
                 <button class="btn btn-outline-secondary btn-sm btn-notif-cancel" data-id="${n.id}" title="Stop reminders">
                     <i class="bi bi-bell-slash"></i>
+                </button>
+                ${deleteBtn}`;
+        }
+
+        let overrideBtns = "";
+        if (n.status === "approved") {
+            overrideBtns = `<button class="btn btn-outline-danger btn-sm btn-notif-override" data-id="${n.id}" data-action="reject" title="Override → Reject (Non-Billable)">
+                    <i class="bi bi-arrow-counterclockwise me-1"></i>Reject
+                </button>`;
+        } else if (n.status === "rejected" || n.status === "no_response") {
+            overrideBtns = `<button class="btn btn-outline-success btn-sm btn-notif-override" data-id="${n.id}" data-action="approve" title="Override → Approve (Billable)">
+                    <i class="bi bi-arrow-counterclockwise me-1"></i>Approve
                 </button>`;
         }
-        return `<span class="text-muted small">—</span>`;
+
+        return `${overrideBtns} ${deleteBtn}`;
     }
 
     function refreshNotifAwaitingBadge() {
@@ -1729,6 +1747,42 @@ $(document).ready(function () {
         if (note === null) return;
         if (!confirm("Mark as not allocated? Employee will remain Blocked.")) return;
         notifAction(id, "blocked-reject", { note: note });
+    });
+
+    $(document).on("click", ".btn-notif-delete", function () {
+        const id = $(this).data("id");
+        if (!confirm("Are you sure you want to permanently delete this notification? This cannot be undone.")) return;
+        notifAction(id, "delete", {});
+    });
+
+    $(document).on("click", ".btn-notif-override", function () {
+        const id = $(this).data("id");
+        const action = $(this).data("action");
+        const label = action === "approve" ? "Approve (Billable)" : "Reject (Non-Billable)";
+        if (!confirm(`Override this notification to ${label}? This will update the employee's status in SharePoint.`)) return;
+        const note = prompt("Optional note for the override:", "");
+        if (note === null) return;
+        showLoading();
+        $.ajax({
+            url: `/api/notifications/${id}/override`,
+            method: "POST",
+            contentType: "application/json",
+            data: JSON.stringify({ action: action, note: note }),
+            success: function (resp) {
+                hideLoading();
+                toastr.success(resp.message || "Override applied");
+                loadNotifications();
+                refreshNotifAwaitingBadge();
+                loadData();
+                loadSummary();
+                if ($("#pane-demand").hasClass("show")) loadDemandData();
+            },
+            error: function (xhr) {
+                hideLoading();
+                const err = xhr.responseJSON ? xhr.responseJSON.error : "Override failed";
+                toastr.error(err);
+            }
+        });
     });
 
     $(document).on("click", ".btn-notif-resend", function () {

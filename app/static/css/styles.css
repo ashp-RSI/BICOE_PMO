@@ -575,6 +575,17 @@ body {
     font-size: 0.72rem;
 }
 
+.btn-notif-override {
+    padding: 0.1rem 0.5rem;
+    font-size: 0.68rem;
+    font-weight: 600;
+}
+
+.btn-notif-delete {
+    padding: 0.1rem 0.4rem;
+    font-size: 0.72rem;
+}
+
 /* ── Pagination ──────────────────────────────── */
 .pagination .page-link {
     border-radius: 4px;
