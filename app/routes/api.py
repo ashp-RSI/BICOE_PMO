@@ -1815,26 +1815,27 @@ def notification_delete(notification_id):
 
 @api_bp.route("/notifications/<int:notification_id>/override", methods=["POST"])
 def notification_override(notification_id):
-    """Override a resolved notification's status (Approve↔Reject).
+    """Override a resolved notification's status.
 
+    Actions: approve, reject, revert (back to Proposed + Awaiting).
     Also updates the employee's Billable/Non-Billable in SharePoint.
     """
     try:
         from app.services.notification_store import (
-            STATUS_APPROVED, STATUS_REJECTED,
+            STATUS_APPROVED, STATUS_REJECTED, STATUS_AWAITING,
         )
 
         data = request.get_json() or {}
         new_action = data.get("action")
-        if new_action not in ("approve", "reject"):
-            return jsonify({"error": "action must be 'approve' or 'reject'"}), 400
+        if new_action not in ("approve", "reject", "revert"):
+            return jsonify({"error": "action must be 'approve', 'reject', or 'revert'"}), 400
 
         store = _get_notification_store()
         n = store.get(notification_id)
         if not n:
             return jsonify({"error": "Notification not found"}), 404
 
-        if n["status"] == "awaiting_reply":
+        if n["status"] == "awaiting_reply" and new_action != "revert":
             return jsonify({"error": "Use the normal approve/reject for awaiting notifications"}), 400
 
         emp_code = _normalize_emp_code(n["emp_code"])
@@ -1859,7 +1860,7 @@ def notification_override(notification_id):
                 "success": True,
                 "message": f"{emp_name} overridden to Approved — marked Billable.",
             })
-        else:
+        elif new_action == "reject":
             sp.update_row(emp_row_index, {"Billable/Non Billable": "Non-Billable"})
 
             demand_row = n.get("demand_row_index")
@@ -1881,6 +1882,25 @@ def notification_override(notification_id):
             return jsonify({
                 "success": True,
                 "message": f"{emp_name} overridden to Rejected — reverted to Non-Billable.",
+            })
+        else:
+            sp.update_row(emp_row_index, {"Billable/Non Billable": "Proposed"})
+
+            demand_row = n.get("demand_row_index")
+            if demand_row is not None:
+                try:
+                    sheet = current_app.config.get("DEMAND_SHEET_NAME", "Demand Requisition")
+                    sp.update_demand_row(sheet, demand_row, {"Demand Status": "In Progress"})
+                    cache.delete("demand_df")
+                except Exception:
+                    logger.warning("Could not update demand row %s during revert",
+                                   demand_row, exc_info=True)
+
+            store.reset_for_resend(notification_id)
+            cache.delete("headcount_df")
+            return jsonify({
+                "success": True,
+                "message": f"{emp_name} reverted to Proposed — notification reset to Awaiting.",
             })
     except Exception as e:
         logger.exception("Override notification %d failed", notification_id)

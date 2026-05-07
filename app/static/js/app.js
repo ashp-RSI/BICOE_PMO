@@ -1553,7 +1553,13 @@ $(document).ready(function () {
                 </button>`;
         }
 
-        return `${overrideBtns} ${deleteBtn}`;
+        const revertBtn = (n.status !== "awaiting_reply" && n.status !== "cancelled")
+            ? `<button class="btn btn-outline-warning btn-sm btn-notif-override" data-id="${n.id}" data-action="revert" title="Revert to Proposed → Awaiting">
+                    <i class="bi bi-skip-backward-fill me-1"></i>Revert
+                </button>`
+            : "";
+
+        return `${overrideBtns} ${revertBtn} ${deleteBtn}`;
     }
 
     function refreshNotifAwaitingBadge() {
@@ -1758,7 +1764,12 @@ $(document).ready(function () {
     $(document).on("click", ".btn-notif-override", function () {
         const id = $(this).data("id");
         const action = $(this).data("action");
-        const label = action === "approve" ? "Approve (Billable)" : "Reject (Non-Billable)";
+        const labels = {
+            approve: "Approve (Billable)",
+            reject: "Reject (Non-Billable)",
+            revert: "Revert to Proposed (Awaiting)"
+        };
+        const label = labels[action] || action;
         if (!confirm(`Override this notification to ${label}? This will update the employee's status in SharePoint.`)) return;
         const note = prompt("Optional note for the override:", "");
         if (note === null) return;
