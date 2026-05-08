@@ -546,8 +546,9 @@ HEADCOUNT_ADD_FIELDS = [
     "Fresher/Lateral", "Offshore/Onsite", "Experience", "Designation",
     "Grade", "DOJ", "Gender", "First Line Manager", "Skip Level Manager",
     "Company Email", "Sub Practice", "Remarks", "Empower SL",
-    "Billable/Non Billable", "Billable Till Date", "Projects", "Remarks2",
-    "Customer Name", "Customer interview happened(Yes/No)",
+    "Billable/Non Billable", "Billable Till Date", "Allocation Date",
+    "Projects", "Remarks2", "Customer Name",
+    "Customer interview happened(Yes/No)",
     "Customer Selected(Yes/No)", "Comments",
 ]
 
@@ -1190,11 +1191,13 @@ def _verify_action_token(token):
 
 
 def _build_action_buttons_html(notification_id):
-    """Return an HTML snippet with Yes / No buttons for an email."""
+    """Return an HTML snippet with Yes / Hold / No buttons for an email."""
     base_url = current_app.config["APP_BASE_URL"]
     approve_token = _generate_action_token(notification_id, "approve")
+    hold_token = _generate_action_token(notification_id, "hold")
     reject_token = _generate_action_token(notification_id, "reject")
     approve_url = f"{base_url}/api/notifications/action?token={approve_token}"
+    hold_url = f"{base_url}/api/notifications/action?token={hold_token}"
     reject_url = f"{base_url}/api/notifications/action?token={reject_token}"
     return f"""
         <table cellpadding="0" cellspacing="0" border="0" style="margin-top:20px">
@@ -1205,6 +1208,14 @@ def _build_action_buttons_html(notification_id):
                         text-decoration:none;border-radius:5px;font-weight:bold;
                         display:inline-block;font-size:14px">
                 &#10004; Yes
+              </a>
+            </td>
+            <td style="padding-right:12px">
+              <a href="{hold_url}"
+                 style="background-color:#ffc107;color:#212529;padding:12px 28px;
+                        text-decoration:none;border-radius:5px;font-weight:bold;
+                        display:inline-block;font-size:14px">
+                &#9208; Hold
               </a>
             </td>
             <td>
@@ -1480,7 +1491,8 @@ def get_notification_for_employee(emp_row_index):
         return jsonify({"error": str(e)}), 500
 
 
-def _perform_approve(notification_id, decided_by="user", note=""):
+def _perform_approve(notification_id, allocation_date="",
+                     decided_by="user", note=""):
     """Core approve logic shared by the dashboard API and email-link handler.
 
     Returns (result_dict, http_status_code).
@@ -1513,6 +1525,8 @@ def _perform_approve(notification_id, decided_by="user", note=""):
         "Customer interview happened(Yes/No)": "Yes",
         "Customer Selected(Yes/No)": "Yes",
     }
+    if allocation_date:
+        headcount_updates["Allocation Date"] = allocation_date
 
     sp = _get_service()
     sheet = current_app.config.get("DEMAND_SHEET_NAME", "Demand Requisition")
@@ -1543,12 +1557,18 @@ def _perform_approve(notification_id, decided_by="user", note=""):
             f"(No demand row was linked.)"
         )
 
+    if allocation_date:
+        msg += f" Allocation date: {allocation_date}."
+
     cache.delete("demand_df")
     cache.delete("headcount_df")
 
+    if allocation_date:
+        store.record_allocation_response(notification_id, allocation_date)
     store.update_status(
         notification_id, STATUS_APPROVED,
-        decided_by=decided_by, decision_note=note,
+        decided_by=decided_by,
+        decision_note=note or (f"Allocation date: {allocation_date}" if allocation_date else ""),
     )
 
     return {"success": True, "message": msg}, 200
@@ -1633,14 +1653,68 @@ def _perform_reject(notification_id, decided_by="user", note=""):
     }, 200
 
 
-# ── Email Action Link (one-click approve/reject from email) ──────────
+def _perform_hold(notification_id, decided_by="user", note=""):
+    """Hold: set the proposed employee to Blocked status.
+
+    Returns (result_dict, http_status_code).
+    """
+    from app.services.notification_store import STATUS_HOLD
+
+    store = _get_notification_store()
+    n = store.get(notification_id)
+    if not n:
+        return {"error": "Notification not found"}, 404
+
+    if n["status"] != "awaiting_reply":
+        return {
+            "error": f"Already resolved ({n['status']})",
+            "already_decided": True,
+        }, 409
+
+    emp_code = _normalize_emp_code(n["emp_code"])
+    hc_df = _get_cached_df()
+    match = hc_df[hc_df["Emp Code"].apply(_normalize_emp_code) == emp_code]
+    if match.empty:
+        store.update_status(
+            notification_id, STATUS_HOLD,
+            decided_by=decided_by,
+            decision_note=note + " (employee no longer in headcount)",
+        )
+        return {
+            "success": True,
+            "message": "Marked on hold (employee not in headcount)",
+        }, 200
+
+    emp_row_index = int(match.index[0])
+    emp_name = _clean_value(match.iloc[0].get("Emp Name")) or ""
+
+    sp = _get_service()
+    sp.update_row(emp_row_index, {"Billable/Non Billable": "Blocked"})
+
+    cache.delete("headcount_df")
+
+    store.update_status(
+        notification_id, STATUS_HOLD,
+        decided_by=decided_by, decision_note=note,
+    )
+
+    return {
+        "success": True,
+        "message": (
+            f"{emp_name} ({emp_code}) placed on hold — "
+            f"status changed to Blocked."
+        ),
+    }, 200
+
+
+# ── Email Action Link (one-click approve/hold/reject from email) ─────
 
 @api_bp.route("/notifications/action", methods=["GET", "POST"])
 def notification_action_from_email():
-    """Two-step approve/reject from email.
+    """Two-step approve/hold/reject from email.
 
     GET  → shows a confirmation page with a button (safe from link pre-fetch).
-    POST → actually processes the approve/reject action.
+    POST → actually processes the approve/hold/reject action.
     """
     token = request.args.get("token", "") or request.form.get("token", "")
     if not token:
@@ -1654,7 +1728,7 @@ def notification_action_from_email():
 
     notification_id = data.get("nid")
     action = data.get("act")
-    if action not in ("approve", "reject"):
+    if action not in ("approve", "hold", "reject"):
         return render_template("notification_action.html", step="error",
                                message="Invalid action in link."), 400
 
@@ -1674,7 +1748,18 @@ def notification_action_from_email():
 
     try:
         if action == "approve":
+            allocation_date = (request.form.get("allocation_date") or "").strip()
+            if not allocation_date:
+                emp_name = n["emp_name"] if n else "Unknown"
+                return render_template(
+                    "notification_action.html", step="confirm",
+                    token=token, action=action, emp_name=emp_name,
+                    error="Allocation date is required.")
             result, status = _perform_approve(
+                notification_id, allocation_date=allocation_date,
+                decided_by="manager_email_link")
+        elif action == "hold":
+            result, status = _perform_hold(
                 notification_id, decided_by="manager_email_link")
         else:
             result, status = _perform_reject(
@@ -1698,7 +1783,8 @@ def notification_action_from_email():
                                message=result.get("error",
                                                    "An error occurred.")), status
 
-    action_label = "Approved" if action == "approve" else "Rejected"
+    action_labels = {"approve": "Approved", "hold": "Put on Hold", "reject": "Rejected"}
+    action_label = action_labels.get(action, action.title())
     return render_template("notification_action.html", step="done",
                            success=True,
                            message=f"{action_label} successfully. "
@@ -1711,9 +1797,13 @@ def notification_action_from_email():
 def notification_approve(notification_id):
     """Manager approved via dashboard → mark employee Billable."""
     try:
-        decided_by = (request.get_json() or {}).get("decided_by") or "user"
-        note = (request.get_json() or {}).get("note") or ""
-        result, status = _perform_approve(notification_id, decided_by, note)
+        data = request.get_json() or {}
+        decided_by = data.get("decided_by") or "user"
+        note = data.get("note") or ""
+        allocation_date = data.get("allocation_date") or ""
+        result, status = _perform_approve(
+            notification_id, allocation_date=allocation_date,
+            decided_by=decided_by, note=note)
         return jsonify(result), status
     except Exception as e:
         logger.exception("Approve notification %d failed", notification_id)
@@ -1730,6 +1820,19 @@ def notification_reject(notification_id):
         return jsonify(result), status
     except Exception as e:
         logger.exception("Reject notification %d failed", notification_id)
+        return jsonify({"error": str(e)}), 500
+
+
+@api_bp.route("/notifications/<int:notification_id>/hold", methods=["POST"])
+def notification_hold(notification_id):
+    """Manager put on hold via dashboard → set employee to Blocked."""
+    try:
+        decided_by = (request.get_json() or {}).get("decided_by") or "user"
+        note = (request.get_json() or {}).get("note") or ""
+        result, status = _perform_hold(notification_id, decided_by, note)
+        return jsonify(result), status
+    except Exception as e:
+        logger.exception("Hold notification %d failed", notification_id)
         return jsonify({"error": str(e)}), 500
 
 

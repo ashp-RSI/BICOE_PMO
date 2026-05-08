@@ -31,6 +31,7 @@
     .icon.success { color: #28a745; }
     .icon.error   { color: #dc3545; }
     .icon.confirm { color: #1a73e8; }
+    .icon.hold    { color: #ffc107; }
     h1 {
       font-size: 1.35rem;
       color: #212529;
@@ -44,6 +45,27 @@
     .emp-name {
       font-weight: 700;
       color: #212529;
+    }
+    label {
+      display: block;
+      text-align: left;
+      margin-top: 1.5rem;
+      font-weight: 600;
+      color: #212529;
+    }
+    input[type="date"] {
+      width: 100%;
+      padding: 10px 12px;
+      margin-top: 6px;
+      border: 1px solid #ced4da;
+      border-radius: 6px;
+      font-size: 1rem;
+      color: #495057;
+    }
+    input[type="date"]:focus {
+      outline: none;
+      border-color: #28a745;
+      box-shadow: 0 0 0 3px rgba(40,167,69,.15);
     }
     .btn {
       display: inline-block;
@@ -62,8 +84,15 @@
     .btn:active { transform: translateY(0); }
     .btn-approve { background-color: #28a745; }
     .btn-approve:hover { background-color: #218838; }
+    .btn-hold { background-color: #ffc107; color: #212529; }
+    .btn-hold:hover { background-color: #e0a800; }
     .btn-reject { background-color: #dc3545; }
     .btn-reject:hover { background-color: #c82333; }
+    .error-text {
+      color: #dc3545;
+      margin-top: 0.75rem;
+      font-size: .9rem;
+    }
     .footer {
       margin-top: 2rem;
       font-size: .8rem;
@@ -74,25 +103,48 @@
 <body>
   <div class="card">
     {% if step == "confirm" %}
-      <div class="icon confirm">&#9993;</div>
-      <h1>Confirm Your Decision</h1>
-      <p class="message">
-        You are about to
-        {% if action == "approve" %}
-          <strong style="color:#28a745">Approve</strong>
-        {% else %}
-          <strong style="color:#dc3545">Reject</strong>
+      {% if action == "approve" %}
+        <div class="icon confirm">&#9993;</div>
+        <h1>Approve Allocation</h1>
+        <p class="message">
+          You are approving the allocation request for <span class="emp-name">{{ emp_name }}</span>.
+          Please enter the allocation start date below.
+        </p>
+        {% if error %}
+          <p class="error-text">{{ error }}</p>
         {% endif %}
-        the allocation request for <span class="emp-name">{{ emp_name }}</span>.
-      </p>
-      <form method="POST" action="/api/notifications/action">
-        <input type="hidden" name="token" value="{{ token }}">
-        {% if action == "approve" %}
+        <form method="POST" action="/api/notifications/action">
+          <input type="hidden" name="token" value="{{ token }}">
+          <label for="allocation_date">Allocation Date</label>
+          <input type="date" id="allocation_date" name="allocation_date" required>
+          <br>
           <button type="submit" class="btn btn-approve">Confirm Approval</button>
-        {% else %}
+        </form>
+      {% elif action == "hold" %}
+        <div class="icon hold">&#9208;</div>
+        <h1>Hold Allocation</h1>
+        <p class="message">
+          You are placing the allocation request for
+          <span class="emp-name">{{ emp_name }}</span> on <strong style="color:#ffc107">Hold</strong>.
+          The employee status will be changed to Blocked.
+        </p>
+        <form method="POST" action="/api/notifications/action">
+          <input type="hidden" name="token" value="{{ token }}">
+          <button type="submit" class="btn btn-hold">Confirm Hold</button>
+        </form>
+      {% else %}
+        <div class="icon confirm">&#9993;</div>
+        <h1>Reject Allocation</h1>
+        <p class="message">
+          You are about to <strong style="color:#dc3545">Reject</strong>
+          the allocation request for <span class="emp-name">{{ emp_name }}</span>.
+          The employee status will be changed to Non-Billable.
+        </p>
+        <form method="POST" action="/api/notifications/action">
+          <input type="hidden" name="token" value="{{ token }}">
           <button type="submit" class="btn btn-reject">Confirm Rejection</button>
-        {% endif %}
-      </form>
+        </form>
+      {% endif %}
     {% elif step == "done" %}
       {% if success %}
         <div class="icon success">&#10004;</div>

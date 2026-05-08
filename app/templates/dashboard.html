@@ -771,7 +771,7 @@
                         </label>
                         <div class="small text-muted mb-1">
                             Column order (same as SharePoint sheet, tab-separated — skip <strong>S.No</strong>):
-                            <code>Division &nbsp;Emp Code &nbsp;Emp Name &nbsp;Status &nbsp;LWD &nbsp;Skills &nbsp;Fresher/Lateral &nbsp;Offshore/Onsite &nbsp;Experience &nbsp;Designation &nbsp;Grade &nbsp;DOJ &nbsp;Gender &nbsp;First Line Manager &nbsp;Skip Level Manager &nbsp;Company Email &nbsp;Sub Practice &nbsp;Remarks &nbsp;Empower SL &nbsp;Billable/Non Billable &nbsp;Billable Till Date &nbsp;Projects &nbsp;Remarks2 &nbsp;Customer Name &nbsp;Customer interview happened(Yes/No) &nbsp;Customer Selected(Yes/No) &nbsp;Comments</code>
+                            <code>Division &nbsp;Emp Code &nbsp;Emp Name &nbsp;Status &nbsp;LWD &nbsp;Skills &nbsp;Fresher/Lateral &nbsp;Offshore/Onsite &nbsp;Experience &nbsp;Designation &nbsp;Grade &nbsp;DOJ &nbsp;Gender &nbsp;First Line Manager &nbsp;Skip Level Manager &nbsp;Company Email &nbsp;Sub Practice &nbsp;Remarks &nbsp;Empower SL &nbsp;Billable/Non Billable &nbsp;Billable Till Date &nbsp;Allocation Date &nbsp;Projects &nbsp;Remarks2 &nbsp;Customer Name &nbsp;Customer interview happened(Yes/No) &nbsp;Customer Selected(Yes/No) &nbsp;Comments</code>
                         </div>
                         <textarea class="form-control form-control-sm" id="bulkPasteArea" rows="4"
                                   placeholder="Paste rows copied directly from the SharePoint Excel sheet (omit the S.No column)"></textarea>
@@ -809,6 +809,7 @@
                                     <th style="min-width:120px">Empower SL</th>
                                     <th style="min-width:150px">Billable/Non Billable</th>
                                     <th style="min-width:140px">Billable Till Date</th>
+                                    <th style="min-width:140px">Allocation Date</th>
                                     <th style="min-width:160px">Projects</th>
                                     <th style="min-width:160px">Remarks2</th>
                                     <th style="min-width:160px">Customer Name</th>
@@ -858,16 +859,10 @@
                     <input type="hidden" id="notifyResolutionMethod">
                     <input type="hidden" id="notifyManagerName">
 
-                    <div class="row g-2 mb-2">
-                        <div class="col-md-6">
-                            <label class="form-label small fw-semibold mb-1">Manager (To)</label>
-                            <input type="email" class="form-control form-control-sm" id="notifyTo">
-                            <div class="small text-muted mt-1" id="notifyManagerNameLabel"></div>
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label small fw-semibold mb-1">CC (comma-separated)</label>
-                            <input type="text" class="form-control form-control-sm" id="notifyCc">
-                        </div>
+                    <div class="mb-2">
+                        <label class="form-label small fw-semibold mb-1">Manager (To)</label>
+                        <input type="email" class="form-control form-control-sm" id="notifyTo">
+                        <div class="small text-muted mt-1" id="notifyManagerNameLabel"></div>
                     </div>
                     <div class="mb-2">
                         <label class="form-label small fw-semibold mb-1">Subject</label>
@@ -924,16 +919,10 @@
                     <input type="hidden" id="blockedResolutionMethod">
                     <input type="hidden" id="blockedManagerName">
 
-                    <div class="row g-2 mb-2">
-                        <div class="col-md-6">
-                            <label class="form-label small fw-semibold mb-1">Manager (To)</label>
-                            <input type="email" class="form-control form-control-sm" id="blockedTo">
-                            <div class="small text-muted mt-1" id="blockedManagerNameLabel"></div>
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label small fw-semibold mb-1">CC (comma-separated)</label>
-                            <input type="text" class="form-control form-control-sm" id="blockedCc">
-                        </div>
+                    <div class="mb-2">
+                        <label class="form-label small fw-semibold mb-1">Manager (To)</label>
+                        <input type="email" class="form-control form-control-sm" id="blockedTo">
+                        <div class="small text-muted mt-1" id="blockedManagerNameLabel"></div>
                     </div>
                     <div class="mb-2">
                         <label class="form-label small fw-semibold mb-1">Subject</label>

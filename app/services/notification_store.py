@@ -18,6 +18,7 @@ logger = logging.getLogger(__name__)
 STATUS_AWAITING = "awaiting_reply"
 STATUS_APPROVED = "approved"
 STATUS_REJECTED = "rejected"
+STATUS_HOLD = "hold"
 STATUS_NO_RESPONSE = "no_response"
 STATUS_CANCELLED = "cancelled"
 

@@ -26,6 +26,7 @@ DEMAND_HEADERS = [
 HEADCOUNT_BILLABLE_COLUMNS = [
     "Customer interview happened(Yes/No)",
     "Customer Selected(Yes/No)",
+    "Allocation Date",
 ]
 
 HEADCOUNT_EXTRA_COLUMNS = [

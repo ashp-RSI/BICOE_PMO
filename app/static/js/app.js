@@ -46,7 +46,7 @@ $(document).ready(function () {
         "Grade", "DOJ", "Gender", "First Line Manager", "Skip Level Manager",
         "Company Email", "Sub Practice", "Remarks", "Empower SL",
         "Correction to LM", "Billable/Non Billable", "Billable Till Date",
-        "Projects", "Remarks2", "Customer Name",
+        "Allocation Date", "Projects", "Remarks2", "Customer Name",
         "Customer interview happened(Yes/No)", "Customer Selected(Yes/No)",
         "Comments"
     ];
@@ -301,12 +301,12 @@ $(document).ready(function () {
         const badgeHtml = n ? renderNotifBadge(n.status) + " " : "";
 
         if (isBlocked) {
-            return `${badgeHtml}<button class="btn btn-warning btn-sm btn-check-allocation"
+            return `${badgeHtml}<button class="btn btn-success btn-sm btn-check-allocation"
                         data-emp-row="${empRow}"
                         data-emp-name="${empName}"
                         data-emp-code="${empCode}"
-                        title="Check Allocation Status">
-                    <i class="bi bi-question-circle-fill"></i>
+                        title="Notify to Manager About Allocation Start Date">
+                    <i class="bi bi-send-fill"></i>
                 </button>`;
         }
 
@@ -314,7 +314,7 @@ $(document).ready(function () {
                     data-emp-row="${empRow}"
                     data-emp-name="${empName}"
                     data-emp-code="${empCode}"
-                    title="Notify First Line Manager">
+                    title="Mail to Manager for Project Confirmation">
                 <i class="bi bi-send-fill"></i>
             </button>`;
     }
@@ -324,6 +324,7 @@ $(document).ready(function () {
             "awaiting_reply": ["badge-notif-awaiting", "Awaiting"],
             "approved": ["badge-notif-approved", "Approved"],
             "rejected": ["badge-notif-rejected", "Rejected"],
+            "hold": ["badge bg-warning text-dark", "On Hold"],
             "no_response": ["badge-notif-noresp", "No Response"],
             "cancelled": ["badge-notif-cancel", "Cancelled"],
         };
@@ -1127,8 +1128,9 @@ $(document).ready(function () {
         "Fresher/Lateral", "Offshore/Onsite", "Experience", "Designation",
         "Grade", "DOJ", "Gender", "First Line Manager", "Skip Level Manager",
         "Company Email", "Sub Practice", "Remarks", "Empower SL",
-        "Billable/Non Billable", "Billable Till Date", "Projects", "Remarks2",
-        "Customer Name", "Customer interview happened(Yes/No)",
+        "Billable/Non Billable", "Billable Till Date", "Allocation Date",
+        "Projects", "Remarks2", "Customer Name",
+        "Customer interview happened(Yes/No)",
         "Customer Selected(Yes/No)", "Comments",
     ];
 
@@ -1154,6 +1156,7 @@ $(document).ready(function () {
         "Empower SL": "",
         "Billable/Non Billable": "e.g. Non-Billable",
         "Billable Till Date": "YYYY-MM-DD",
+        "Allocation Date": "YYYY-MM-DD",
         "Projects": "",
         "Remarks2": "",
         "Customer Name": "",
@@ -1342,7 +1345,6 @@ $(document).ready(function () {
         $("#notifyEmpLabel").text(`${empName} (${empCode})`);
         $("#notifyEmpRowIndex").val(empRow);
         $("#notifyTo").val("");
-        $("#notifyCc").val("");
         $("#notifySubject").val("");
         $("#notifyBody").val("");
         $("#notifyPreview").html('<em class="text-muted">Loading…</em>');
@@ -1360,7 +1362,6 @@ $(document).ready(function () {
             );
             $("#notifyResolutionMethod").val(r.method || "manual");
             $("#notifyTo").val(resp.default_to || "");
-            $("#notifyCc").val((resp.default_cc || []).join(", "));
             $("#notifySubject").val(resp.subject || "");
             $("#notifyBody").val(resp.body_html || "");
             renderNotifyPreview();
@@ -1420,7 +1421,6 @@ $(document).ready(function () {
     function sendNotifyMail() {
         const empRow = parseInt($("#notifyEmpRowIndex").val());
         const to = ($("#notifyTo").val() || "").trim();
-        const cc = ($("#notifyCc").val() || "").split(",").map(s => s.trim()).filter(Boolean);
         const subject = ($("#notifySubject").val() || "").trim();
         const body = $("#notifyBody").val() || "";
 
@@ -1438,7 +1438,7 @@ $(document).ready(function () {
                 emp_row_index: empRow,
                 manager_email: to,
                 manager_name: $("#notifyManagerName").val() || "",
-                cc_emails: cc,
+                cc_emails: [],
                 subject: subject,
                 body_html: body,
                 resolution_method: $("#notifyResolutionMethod").val() || "manual",
@@ -1530,6 +1530,9 @@ $(document).ready(function () {
                 <button class="btn btn-success btn-sm btn-notif-approve" data-id="${n.id}" title="Manager approved">
                     <i class="bi bi-check-circle"></i>
                 </button>
+                <button class="btn btn-warning btn-sm btn-notif-hold" data-id="${n.id}" title="Put on hold (Blocked)">
+                    <i class="bi bi-pause-circle"></i>
+                </button>
                 <button class="btn btn-danger btn-sm btn-notif-reject" data-id="${n.id}" title="Manager rejected">
                     <i class="bi bi-x-circle"></i>
                 </button>
@@ -1547,7 +1550,7 @@ $(document).ready(function () {
             overrideBtns = `<button class="btn btn-outline-danger btn-sm btn-notif-override" data-id="${n.id}" data-action="reject" title="Override → Reject (Non-Billable)">
                     <i class="bi bi-arrow-counterclockwise me-1"></i>Reject
                 </button>`;
-        } else if (n.status === "rejected" || n.status === "no_response") {
+        } else if (n.status === "rejected" || n.status === "no_response" || n.status === "hold") {
             overrideBtns = `<button class="btn btn-outline-success btn-sm btn-notif-override" data-id="${n.id}" data-action="approve" title="Override → Approve (Billable)">
                     <i class="bi bi-arrow-counterclockwise me-1"></i>Approve
                 </button>`;
@@ -1578,7 +1581,6 @@ $(document).ready(function () {
         $("#blockedEmpLabel").text(`${empName} (${empCode})`);
         $("#blockedEmpRowIndex").val(empRow);
         $("#blockedTo").val("");
-        $("#blockedCc").val("");
         $("#blockedSubject").val("");
         $("#blockedBody").val("");
         $("#blockedPreview").html('<em class="text-muted">Loading…</em>');
@@ -1595,7 +1597,6 @@ $(document).ready(function () {
             );
             $("#blockedResolutionMethod").val(r.method || "manual");
             $("#blockedTo").val(resp.default_to || "");
-            $("#blockedCc").val((resp.default_cc || []).join(", "));
             $("#blockedSubject").val(resp.subject || "");
             $("#blockedBody").val(resp.body_html || "");
             renderBlockedPreview();
@@ -1634,7 +1635,6 @@ $(document).ready(function () {
     function sendBlockedMail() {
         const empRow = parseInt($("#blockedEmpRowIndex").val());
         const to = ($("#blockedTo").val() || "").trim();
-        const cc = ($("#blockedCc").val() || "").split(",").map(s => s.trim()).filter(Boolean);
         const subject = ($("#blockedSubject").val() || "").trim();
         const body = $("#blockedBody").val() || "";
 
@@ -1652,7 +1652,7 @@ $(document).ready(function () {
                 emp_row_index: empRow,
                 manager_email: to,
                 manager_name: $("#blockedManagerName").val() || "",
-                cc_emails: cc,
+                cc_emails: [],
                 subject: subject,
                 body_html: body,
                 resolution_method: $("#blockedResolutionMethod").val() || "manual",
@@ -1718,10 +1718,19 @@ $(document).ready(function () {
 
     $(document).on("click", ".btn-notif-approve", function () {
         const id = $(this).data("id");
-        const note = prompt("Optional approval note:", "");
-        if (note === null) return;
+        const allocDate = prompt("Enter allocation date (YYYY-MM-DD):", new Date().toISOString().slice(0, 10));
+        if (allocDate === null) return;
+        if (!allocDate.trim()) { toastr.warning("Allocation date is required"); return; }
         if (!confirm("Mark as Approved? This will set the employee to Billable and the demand to Fulfilled.")) return;
-        notifAction(id, "approve", { note: note });
+        notifAction(id, "approve", { allocation_date: allocDate.trim() });
+    });
+
+    $(document).on("click", ".btn-notif-hold", function () {
+        const id = $(this).data("id");
+        const note = prompt("Optional hold note:", "");
+        if (note === null) return;
+        if (!confirm("Put on Hold? This will change the employee status to Blocked.")) return;
+        notifAction(id, "hold", { note: note });
     });
 
     $(document).on("click", ".btn-notif-reject", function () {
