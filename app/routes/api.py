@@ -1191,13 +1191,11 @@ def _verify_action_token(token):
 
 
 def _build_action_buttons_html(notification_id):
-    """Return an HTML snippet with Yes / Hold / No buttons for an email."""
+    """Return an HTML snippet with Yes / No buttons for an email."""
     base_url = current_app.config["APP_BASE_URL"]
     approve_token = _generate_action_token(notification_id, "approve")
-    hold_token = _generate_action_token(notification_id, "hold")
     reject_token = _generate_action_token(notification_id, "reject")
     approve_url = f"{base_url}/api/notifications/action?token={approve_token}"
-    hold_url = f"{base_url}/api/notifications/action?token={hold_token}"
     reject_url = f"{base_url}/api/notifications/action?token={reject_token}"
     return f"""
         <table cellpadding="0" cellspacing="0" border="0" style="margin-top:20px">
@@ -1208,14 +1206,6 @@ def _build_action_buttons_html(notification_id):
                         text-decoration:none;border-radius:5px;font-weight:bold;
                         display:inline-block;font-size:14px">
                 &#10004; Yes
-              </a>
-            </td>
-            <td style="padding-right:12px">
-              <a href="{hold_url}"
-                 style="background-color:#ffc107;color:#212529;padding:12px 28px;
-                        text-decoration:none;border-radius:5px;font-weight:bold;
-                        display:inline-block;font-size:14px">
-                &#9208; Hold
               </a>
             </td>
             <td>
@@ -1711,10 +1701,10 @@ def _perform_hold(notification_id, decided_by="user", note=""):
 
 @api_bp.route("/notifications/action", methods=["GET", "POST"])
 def notification_action_from_email():
-    """Two-step approve/hold/reject from email.
+    """Two-step approve/reject from email.
 
-    GET  → shows a confirmation page with a button (safe from link pre-fetch).
-    POST → actually processes the approve/hold/reject action.
+    GET  → shows a confirmation page (safe from link pre-fetch).
+    POST → processes approve (with allocation date), hold, or reject.
     """
     token = request.args.get("token", "") or request.form.get("token", "")
     if not token:
@@ -1728,7 +1718,7 @@ def notification_action_from_email():
 
     notification_id = data.get("nid")
     action = data.get("act")
-    if action not in ("approve", "hold", "reject"):
+    if action not in ("approve", "reject"):
         return render_template("notification_action.html", step="error",
                                message="Invalid action in link."), 400
 
@@ -1748,22 +1738,27 @@ def notification_action_from_email():
 
     try:
         if action == "approve":
-            allocation_date = (request.form.get("allocation_date") or "").strip()
-            if not allocation_date:
-                emp_name = n["emp_name"] if n else "Unknown"
-                return render_template(
-                    "notification_action.html", step="confirm",
-                    token=token, action=action, emp_name=emp_name,
-                    error="Allocation date is required.")
-            result, status = _perform_approve(
-                notification_id, allocation_date=allocation_date,
-                decided_by="manager_email_link")
-        elif action == "hold":
-            result, status = _perform_hold(
-                notification_id, decided_by="manager_email_link")
+            decision = (request.form.get("decision") or "approve").strip()
+            if decision == "hold":
+                result, status = _perform_hold(
+                    notification_id, decided_by="manager_email_link")
+                effective_action = "hold"
+            else:
+                allocation_date = (request.form.get("allocation_date") or "").strip()
+                if not allocation_date:
+                    emp_name = n["emp_name"] if n else "Unknown"
+                    return render_template(
+                        "notification_action.html", step="confirm",
+                        token=token, action=action, emp_name=emp_name,
+                        error="Allocation date is required.")
+                result, status = _perform_approve(
+                    notification_id, allocation_date=allocation_date,
+                    decided_by="manager_email_link")
+                effective_action = "approve"
         else:
             result, status = _perform_reject(
                 notification_id, decided_by="manager_email_link")
+            effective_action = "reject"
     except Exception as e:
         logger.exception("Email action failed for notification %d",
                          notification_id)
@@ -1784,7 +1779,7 @@ def notification_action_from_email():
                                                    "An error occurred.")), status
 
     action_labels = {"approve": "Approved", "hold": "Put on Hold", "reject": "Rejected"}
-    action_label = action_labels.get(action, action.title())
+    action_label = action_labels.get(effective_action, effective_action.title())
     return render_template("notification_action.html", step="done",
                            success=True,
                            message=f"{action_label} successfully. "

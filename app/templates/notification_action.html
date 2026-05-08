@@ -115,23 +115,22 @@
         {% endif %}
         <form method="POST" action="/api/notifications/action">
           <input type="hidden" name="token" value="{{ token }}">
+          <input type="hidden" name="decision" value="approve">
           <label for="allocation_date">Allocation Date</label>
           <input type="date" id="allocation_date" name="allocation_date" required>
           <br>
           <button type="submit" class="btn btn-approve">Confirm Approval</button>
         </form>
-      {% elif action == "hold" %}
-        <div class="icon hold">&#9208;</div>
-        <h1>Hold Allocation</h1>
-        <p class="message">
-          You are placing the allocation request for
-          <span class="emp-name">{{ emp_name }}</span> on <strong style="color:#ffc107">Hold</strong>.
-          The employee status will be changed to Blocked.
-        </p>
-        <form method="POST" action="/api/notifications/action">
-          <input type="hidden" name="token" value="{{ token }}">
-          <button type="submit" class="btn btn-hold">Confirm Hold</button>
-        </form>
+        <div style="margin-top:2rem; padding-top:1.5rem; border-top:1px solid #e9ecef;">
+          <p style="color:#6c757d; font-size:.85rem; margin-bottom:0;">
+            If the allocation date is not yet confirmed:
+          </p>
+          <form method="POST" action="/api/notifications/action">
+            <input type="hidden" name="token" value="{{ token }}">
+            <input type="hidden" name="decision" value="hold">
+            <button type="submit" class="btn btn-hold">Put on Hold</button>
+          </form>
+        </div>
       {% else %}
         <div class="icon confirm">&#9993;</div>
         <h1>Reject Allocation</h1>
